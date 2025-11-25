@@ -1,0 +1,40 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="PyPackageRequirementsInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredPackages">
+        <list>
+          <option value="aiogram" />
+          <option value="pydantic" />
+          <option value="deepseek-api" />
+          <option value="certifi" />
+          <option value="charset-normalizer" />
+          <option value="idna" />
+          <option value="python-dotenv" />
+          <option value="requests" />
+          <option value="urllib3" />
+          <option value="httpcore" />
+          <option value="h11" />
+          <option value="librespot" />
+          <option value="protobuf" />
+          <option value="moviepy" />
+          <option value="pillow" />
+          <option value="pywidevine" />
+          <option value="sympy" />
+          <option value="torch" />
+          <option value="torchaudio" />
+          <option value="torchvision" />
+          <option value="easyocr" />
+          <option value="faiss_cpu" />
+          <option value="fitz" />
+          <option value="numpy" />
+          <option value="pymorphy2" />
+          <option value="pytest" />
+          <option value="python_docx" />
+          <option value="reportlab" />
+          <option value="sentence_transformers" />
+        </list>
+      </option>
+    </inspection_tool>
+  </profile>
+</component>
