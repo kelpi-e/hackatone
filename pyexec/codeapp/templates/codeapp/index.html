@@ -28,7 +28,6 @@ h1 {
     color: #ffcc00;
     margin: 10px 0;
 }
-
 .main-container {
     display: flex;
     height: calc(100vh - 50px);
@@ -36,13 +35,11 @@ h1 {
     padding: 0 10px 10px 10px;
     overflow: hidden;
 }
-
 .editor-column {
     display: flex;
     flex-direction: column;
     flex: 1;
 }
-
 .task-section {
     background-color: #2b2b3c;
     padding: 10px;
@@ -52,39 +49,33 @@ h1 {
     line-height: 1.5;
     flex: 0 0 auto;
 }
-
 .code-output-container {
     display: flex;
     flex-direction: column;
     flex: 1;
-    min-height: 0; /* для корректного растягивания */
+    min-height: 0;
 }
-
 .CodeMirror {
     flex: 1;
     border-radius: 8px;
     font-size: 18px;
-    min-height: 200px;
-}
-
-.output {
-    flex: 0 0 120px;
     min-height: 100px;
+}
+.output {
     background-color: #2b2b3c;
     padding: 10px;
     border-radius: 8px;
     overflow-y: auto;
-    margin-top: 5px;
     font-size: 18px;
+    min-height: 100px;
+    max-height: 70%;
 }
-
 .vert-resizer {
     height: 5px;
     cursor: row-resize;
     background-color: #444;
     margin: 5px 0;
 }
-
 .chat-column {
     flex: 1;
     display: flex;
@@ -93,7 +84,6 @@ h1 {
     border-radius: 8px;
     padding: 10px;
 }
-
 .chat-messages {
     flex: 1;
     background-color: #1e1e2f;
@@ -101,13 +91,11 @@ h1 {
     padding: 10px;
     overflow-y: auto;
 }
-
 .chat-input {
     margin-top: 10px;
     display: flex;
     gap: 5px;
 }
-
 .chat-input textarea {
     flex: 1;
     border-radius: 5px;
@@ -116,11 +104,9 @@ h1 {
     font-size: 14px;
     resize: none;
 }
-
 .chat-input button {
     flex: 0 0 80px;
 }
-
 button {
     margin-top: 10px;
     background-color: #ff6600;
@@ -132,41 +118,32 @@ button {
     border-radius: 5px;
     transition: 0.3s;
 }
-
-button:hover {
-    background-color: #ff8533;
-}
-
-.resizer {
-    width: 5px;
-    cursor: col-resize;
-    background-color: #444;
-}
+button:hover { background-color: #ff8533; }
+.resizer { width: 5px; cursor: col-resize; background-color: #444; }
 </style>
 </head>
 <body>
 <h1>Python Executor</h1>
 
 <div class="main-container">
-    <!-- Левая колонка: задача + код + вывод -->
     <div class="editor-column" id="left">
         <div class="task-section">
-            <p><strong>Задача:</strong> Напишите функцию <code>sum_list(nums)</code>, которая возвращает сумму всех элементов списка целых чисел.</p>
-            <p><strong>Ограничения:</strong></p>
-            <ul>
-                <li>1 ≤ длина списка ≤ 1000</li>
-                <li>-10<sup>6</sup> ≤ элемент списка ≤ 10<sup>6</sup></li>
-            </ul>
-            <p><strong>Входные данные:</strong> список целых чисел <code>nums</code></p>
-            <p><strong>Выходные данные:</strong> одно целое число — сумма элементов списка</p>
-            <p><strong>Пример:</strong></p>
-            <pre>Вход: [1,2,3,4]  Выход: 10</pre>
+            <label for="task-select"><strong>Выберите задачу:</strong></label>
+            <form method="get">
+                <select id="task-select" name="task" onchange="this.form.submit()">
+                    {% for task_file in tasks %}
+                        <option value="{{ task_file }}" {% if task_file == selected_task %}selected{% endif %}>{{ task_file }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+
+            <pre style="white-space: pre-wrap; margin-top:10px;">{{ task_text }}</pre>
         </div>
 
         <div class="code-output-container">
             <form method="post" action="{% url 'run_code' %}">
                 {% csrf_token %}
-                <textarea id="code" name="code" rows="30">{{ code|default:"" }}</textarea>
+                <textarea id="code" name="code" rows="10">{{ code|default:"" }}</textarea>
                 <button type="submit">Run</button>
             </form>
 
@@ -176,10 +153,8 @@ button:hover {
         </div>
     </div>
 
-    <!-- Ресайзер между колонками -->
     <div class="resizer" id="resizer"></div>
 
-    <!-- Правая колонка: чат -->
     <div class="chat-column" id="right">
         <div class="chat-messages"></div>
         <div class="chat-input">
@@ -199,11 +174,8 @@ var editor = CodeMirror.fromTextArea(document.getElementById('code'), {
     viewportMargin: Infinity,
     extraKeys: {"Ctrl-Space": "autocomplete"}
 });
-
 editor.on("inputRead", function(cm, change) {
-    if (change.text[0].match(/\w/)) {
-        CodeMirror.showHint(cm, CodeMirror.hint.anyword, {completeSingle: false});
-    }
+    if (change.text[0].match(/\w/)) CodeMirror.showHint(cm, CodeMirror.hint.anyword, {completeSingle: false});
 });
 
 // Горизонтальный ресайзер
@@ -224,18 +196,18 @@ document.addEventListener('mousemove', e => {
 });
 document.addEventListener('mouseup', e => { isResizing = false; document.body.style.cursor='default'; });
 
-// Вертикальный ресайзер для кода/вывода
+// Вертикальный ресайзер для вывода
 const vertResizer = document.getElementById('vert-resizer');
 const codeContainer = document.querySelector('.CodeMirror');
 const output = document.getElementById('output');
 let isResizingV = false;
-
 vertResizer.addEventListener('mousedown', e => { isResizingV = true; document.body.style.cursor='row-resize'; });
 document.addEventListener('mousemove', e => {
     if (!isResizingV) return;
     let containerTop = codeContainer.parentNode.getBoundingClientRect().top;
     let newHeight = e.clientY - containerTop;
     if (newHeight < 100) newHeight = 100;
+    if (newHeight > window.innerHeight - 200) newHeight = window.innerHeight - 200;
     codeContainer.style.height = newHeight + 'px';
 });
 document.addEventListener('mouseup', e => { isResizingV = false; document.body.style.cursor='default'; });
