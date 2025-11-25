@@ -1,9 +1,10 @@
+# pyexec/urls.py
 from django.contrib import admin
 from django.urls import path
-from codeapp import views
+from codeapp import views  # ← импортируем из codeapp
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('', views.run_code, name='index'),  # главная страница сразу с редактором
-    path('run/', views.run_code, name='run_code'),  # можно оставить для формы
+    path('run/', views.index, name='index'),
+    path('run_code/', views.run_code, name='run_code'),
 ]

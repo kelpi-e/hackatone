@@ -1,39 +1,64 @@
+from django.shortcuts import render, redirect
 import os
 import subprocess
 from django.shortcuts import render
 from django.conf import settings
 
-TASKS_DIR = os.path.join(settings.BASE_DIR, "codeapp", "tests")  # папка с описаниями задач
+TASKS_DIR = os.path.join(settings.BASE_DIR, "codeapp", "tests")
+
+
+def get_task_list():
+    """Возвращает список .txt файлов в папке tests"""
+    if not os.path.exists(TASKS_DIR):
+        return []
+    return [f for f in os.listdir(TASKS_DIR) if f.endswith(".txt")]
+
+
+def get_task_text(selected_task):
+    """Читает и возвращает содержимое выбранной задачи"""
+    if not selected_task:
+        return ""
+    task_path = os.path.join(TASKS_DIR, selected_task)
+    if not os.path.exists(task_path):
+        return f"Файл не найден: {selected_task}"
+    try:
+        with open(task_path, encoding="utf-8") as f:
+            return f.read()
+    except Exception as e:
+        return f"Ошибка чтения файла: {e}"
 
 
 def index(request):
-    tasks_dir = os.path.join(os.path.dirname(__file__), "tests")
-    tasks = [f for f in os.listdir(tasks_dir) if f.endswith(".txt")]
-    selected_task = request.GET.get("task", tasks[0] if tasks else None)
+    """Главная страница + смена задачи (GET)"""
+    tasks = get_task_list()
+    selected_task = request.GET.get("task") or (tasks[0] if tasks else None)
+    task_text = get_task_text(selected_task)
 
-    task_text = ""
-    if selected_task:
-        with open(os.path.join(tasks_dir, selected_task), encoding="utf-8") as f:
-            task_text = f.read()
-
-    return render(request, "codeapp/index.html", {
+    context = {
         "tasks": tasks,
         "selected_task": selected_task,
         "task_text": task_text,
         "code": "",
-        "output": ""
-    })
+        "output": "",
+    }
+    return render(request, "codeapp/index.html", context)
+
 
 def run_code(request):
-    code = request.POST.get("code", "")
-    temp_file = os.path.join(settings.BASE_DIR, "temp_code.py")
+    """Выполнение кода (POST)"""
+    if request.method != "POST":
+        return redirect("index")  # если кто-то зайдёт по GET — редиректим
 
-    # Сохраняем код пользователя
+    code = request.POST.get("code", "")
+    selected_task = request.POST.get("task")  # из hidden поля
+
+    # Сохраняем код во временный файл
+    temp_file = os.path.join(settings.BASE_DIR, "temp_code.py")
     with open(temp_file, "w", encoding="utf-8") as f:
         f.write(code)
 
+    # Запуск в Docker
     try:
-        # Запускаем Docker контейнер с анализом
         result = subprocess.run(
             [
                 "docker", "run", "--rm",
@@ -45,24 +70,21 @@ def run_code(request):
             text=True,
             timeout=20
         )
-        output = result.stdout + "\n" + result.stderr
+        output = result.stdout + ("\n" + result.stderr if result.stderr else "")
+    except subprocess.TimeoutExpired:
+        output = "Ошибка: Превышено время выполнения (20 сек)"
     except Exception as e:
-        output = f"Ошибка при запуске контейнера: {e}"
+        output = f"Ошибка запуска контейнера: {e}"
 
-    # Подгружаем текст задачи
-    tasks = [f for f in os.listdir(TASKS_DIR) if f.endswith(".txt")]
-    selected_task = request.POST.get("task", tasks[0] if tasks else None)
-    task_text = ""
-    if selected_task:
-        task_path = os.path.join(TASKS_DIR, selected_task)
-        if os.path.exists(task_path):
-            with open(task_path, "r", encoding="utf-8") as f:
-                task_text = f.read()
+    # Снова готовим контекст
+    tasks = get_task_list()
+    task_text = get_task_text(selected_task)
 
-    return render(request, "codeapp/index.html", {
-        "code": code,
-        "output": output,
+    context = {
         "tasks": tasks,
         "selected_task": selected_task,
-        "task_text": task_text
-    })
+        "task_text": task_text,
+        "code": code,
+        "output": output,
+    }
+    return render(request, "codeapp/index.html", context)
