@@ -53,27 +53,36 @@ h1 {
     flex: 0 0 auto;
 }
 
-.code-container {
-    flex: 1;
+.code-output-container {
     display: flex;
     flex-direction: column;
+    flex: 1;
+    min-height: 0; /* для корректного растягивания */
 }
 
 .CodeMirror {
     flex: 1;
     border-radius: 8px;
     font-size: 18px;
+    min-height: 200px;
 }
 
 .output {
     flex: 0 0 120px;
-    min-height: 250px;
+    min-height: 100px;
     background-color: #2b2b3c;
     padding: 10px;
     border-radius: 8px;
     overflow-y: auto;
-    margin-top: 10px;
+    margin-top: 5px;
     font-size: 18px;
+}
+
+.vert-resizer {
+    height: 5px;
+    cursor: row-resize;
+    background-color: #444;
+    margin: 5px 0;
 }
 
 .chat-column {
@@ -154,15 +163,17 @@ button:hover {
             <pre>Вход: [1,2,3,4]  Выход: 10</pre>
         </div>
 
-        <div class="code-container">
+        <div class="code-output-container">
             <form method="post" action="{% url 'run_code' %}">
                 {% csrf_token %}
                 <textarea id="code" name="code" rows="30">{{ code|default:"" }}</textarea>
                 <button type="submit">Run</button>
             </form>
-        </div>
 
-        <div class="output" id="output"><pre>{{ output }}</pre></div>
+            <div class="vert-resizer" id="vert-resizer"></div>
+
+            <div class="output" id="output"><pre>{{ output }}</pre></div>
+        </div>
     </div>
 
     <!-- Ресайзер между колонками -->
@@ -200,7 +211,6 @@ const resizer = document.getElementById('resizer');
 const left = document.getElementById('left');
 const right = document.getElementById('right');
 let isResizing = false;
-
 resizer.addEventListener('mousedown', e => { isResizing = true; document.body.style.cursor='col-resize'; });
 document.addEventListener('mousemove', e => {
     if (!isResizing) return;
@@ -213,6 +223,22 @@ document.addEventListener('mousemove', e => {
     right.style.flex='1';
 });
 document.addEventListener('mouseup', e => { isResizing = false; document.body.style.cursor='default'; });
+
+// Вертикальный ресайзер для кода/вывода
+const vertResizer = document.getElementById('vert-resizer');
+const codeContainer = document.querySelector('.CodeMirror');
+const output = document.getElementById('output');
+let isResizingV = false;
+
+vertResizer.addEventListener('mousedown', e => { isResizingV = true; document.body.style.cursor='row-resize'; });
+document.addEventListener('mousemove', e => {
+    if (!isResizingV) return;
+    let containerTop = codeContainer.parentNode.getBoundingClientRect().top;
+    let newHeight = e.clientY - containerTop;
+    if (newHeight < 100) newHeight = 100;
+    codeContainer.style.height = newHeight + 'px';
+});
+document.addEventListener('mouseup', e => { isResizingV = false; document.body.style.cursor='default'; });
 </script>
 </body>
 </html>
