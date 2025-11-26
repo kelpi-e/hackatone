@@ -7,6 +7,11 @@ from django.conf import settings
 TASKS_DIR = os.path.join(settings.BASE_DIR, "codeapp", "tests")
 
 
+def home(request):
+    """Главная страница из frontend"""
+    return render(request, "index.html")
+
+
 def get_task_list():
     """Возвращает список .txt файлов в папке tests"""
     if not os.path.exists(TASKS_DIR):
