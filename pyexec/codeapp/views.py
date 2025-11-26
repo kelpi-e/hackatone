@@ -56,13 +56,14 @@ def check_suspicious_code(code_text):
 
 
 def index(request):
+    # Уже правильно: рендерит ide.html как редактор
     tasks = get_task_list()
     selected = request.GET.get("task") or (tasks[0] if tasks else None)
     text = get_task_text(selected)
 
     return render(
         request,
-        "codeapp/index.html",
+        "codeapp/ide.html",  # Или просто "ide.html", если в templates/codeapp/
         {
             "tasks": tasks,
             "selected_task": selected,
@@ -77,7 +78,7 @@ def index(request):
 
 def run_code(request):
     if request.method != "POST":
-        return redirect("index")
+        return redirect("runcode")
 
     code = request.POST.get("code", "")
     selected = request.POST.get("task")
@@ -209,7 +210,7 @@ def run_code(request):
 
     return render(
         request,
-        "codeapp/index.html",
+        "codeapp/ide.html",
         {
             "tasks": get_task_list(),
             "selected_task": selected,
