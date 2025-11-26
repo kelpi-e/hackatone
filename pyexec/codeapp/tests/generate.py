@@ -14,7 +14,7 @@ def generate_tests_easy(n=10):
         tests.append({"input": nums, "expected": expected})
     return tests
 
-with open("codeapp/tests/tests_easy.json", "w", encoding="utf-8") as f:
+with open("codeapp/tests/easy.json", "w", encoding="utf-8") as f:
     json.dump(generate_tests_easy(), f, ensure_ascii=False, indent=2)
 
 
@@ -34,7 +34,7 @@ def generate_tests_medium(n=10):
         tests.append({"input": non_pal, "expected": False})
     return tests
 
-with open("codeapp/tests/tests_medium.json", "w", encoding="utf-8") as f:
+with open("codeapp/tests/medium.json", "w", encoding="utf-8") as f:
     json.dump(generate_tests_medium(), f, ensure_ascii=False, indent=2)
 
 
@@ -51,5 +51,5 @@ def generate_tests_hard(n=10):
         tests.append({"input": {"nums": nums, "k": k}, "expected": min_sum})
     return tests
 
-with open("codeapp/tests/tests_hard.json", "w", encoding="utf-8") as f:
+with open("codeapp/tests/hard.json", "w", encoding="utf-8") as f:
     json.dump(generate_tests_hard(), f, ensure_ascii=False, indent=2)

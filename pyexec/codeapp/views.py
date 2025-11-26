@@ -1,95 +1,153 @@
-from django.shortcuts import render, redirect
 import os
+import json
 import subprocess
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from django.conf import settings
 
 TASKS_DIR = os.path.join(settings.BASE_DIR, "codeapp", "tests")
+ANALYSIS_LOG = os.path.join(settings.BASE_DIR, "code_analysis.log")
 
 
 def home(request):
-    """Главная страница из frontend"""
     return render(request, "index.html")
 
 
 def get_task_list():
-    """Возвращает список .txt файлов в папке tests"""
+    """Возвращает список задач по .txt файлам"""
     if not os.path.exists(TASKS_DIR):
         return []
     return [f for f in os.listdir(TASKS_DIR) if f.endswith(".txt")]
 
 
-def get_task_text(selected_task):
-    """Читает и возвращает содержимое выбранной задачи"""
-    if not selected_task:
+def get_task_text(task_file):
+    """Читает текст задачи из .txt"""
+    if not task_file:
         return ""
-    task_path = os.path.join(TASKS_DIR, selected_task)
-    if not os.path.exists(task_path):
-        return f"Файл не найден: {selected_task}"
-    try:
-        with open(task_path, encoding="utf-8") as f:
-            return f.read()
-    except Exception as e:
-        return f"Ошибка чтения файла: {e}"
+    path = os.path.join(TASKS_DIR, task_file)
+    if not os.path.exists(path):
+        return f"Файл не найден: {task_file}"
+    with open(path, encoding="utf-8") as f:
+        return f.read()
 
 
 def index(request):
-    """Главная страница + смена задачи (GET)"""
     tasks = get_task_list()
     selected_task = request.GET.get("task") or (tasks[0] if tasks else None)
     task_text = get_task_text(selected_task)
-
     context = {
         "tasks": tasks,
         "selected_task": selected_task,
         "task_text": task_text,
         "code": "",
         "output": "",
+        "input_data": "",
+        "tests_passed": None
     }
     return render(request, "codeapp/index.html", context)
 
 
 def run_code(request):
-    """Выполнение кода (POST)"""
     if request.method != "POST":
-        return redirect("index")  # если кто-то зайдёт по GET — редиректим
+        return redirect("index")
 
     code = request.POST.get("code", "")
-    selected_task = request.POST.get("task")  # из hidden поля
+    selected_task = request.POST.get("task")
+    mode = request.POST.get("mode", "run_code")
+    input_data = request.POST.get("input_data", "")
 
-    # Сохраняем код во временный файл
     temp_file = os.path.join(settings.BASE_DIR, "temp_code.py")
     with open(temp_file, "w", encoding="utf-8") as f:
         f.write(code)
 
-    # Запуск в Docker
-    try:
-        result = subprocess.run(
-            [
-                "docker", "run", "--rm",
-                "-v", f"{temp_file}:/usr/src/app/temp_code.py",
-                "python-analyzer",
-                "temp_code.py"
-            ],
-            capture_output=True,
-            text=True,
-            timeout=20
-        )
-        output = result.stdout + ("\n" + result.stderr if result.stderr else "")
-    except subprocess.TimeoutExpired:
-        output = "Ошибка: Превышено время выполнения (20 сек)"
-    except Exception as e:
-        output = f"Ошибка запуска контейнера: {e}"
+    output = ""
+    tests_passed = None
 
-    # Снова готовим контекст
-    tasks = get_task_list()
-    task_text = get_task_text(selected_task)
+    # Запуск статического анализа в фоне и запись в файл
+    try:
+        with open(ANALYSIS_LOG, "w", encoding="utf-8") as log_file:
+            subprocess.run(
+                [
+                    "docker", "run", "--rm",
+                    "-v", f"{temp_file}:/usr/src/app/temp_code.py",
+                    "python-analyzer",
+                    "temp_code.py"
+                ],
+                stdout=log_file,
+                stderr=log_file,
+                text=True,
+                timeout=20
+            )
+    except Exception as e:
+        with open(ANALYSIS_LOG, "a", encoding="utf-8") as log_file:
+            log_file.write(f"Ошибка статического анализа: {e}\n")
+
+    # Прогон по тестам
+    if mode == "run_tests":
+        json_file = selected_task.replace(".txt", ".json")
+        json_path = os.path.join(TASKS_DIR, json_file)
+        if os.path.exists(json_path):
+            try:
+                with open(json_path, "r", encoding="utf-8") as f:
+                    tests = json.load(f)
+            except Exception as e:
+                output = f"Ошибка чтения файла тестов: {e}"
+                tests = []
+
+            passed_count = 0
+            test_outputs = []
+
+            for idx, test in enumerate(tests, 1):
+                test_input = "\n".join(map(str, test.get("input", [])))
+                expected_output = str(test.get("expected", "")).strip()
+                try:
+                    result = subprocess.run(
+                        ["python", temp_file],
+                        input=test_input,
+                        capture_output=True,
+                        text=True,
+                        timeout=5
+                    )
+                    actual_output = result.stdout.strip()
+                    error_output = result.stderr.strip()
+                    passed = actual_output == expected_output and not error_output
+                    if passed:
+                        passed_count += 1
+
+                    if error_output:
+                        test_outputs.append(f"Тест {idx}: Ошибка\n{error_output}")
+                    else:
+                        test_outputs.append(f"Тест {idx}: {actual_output}")
+
+                except subprocess.TimeoutExpired:
+                    test_outputs.append(f"Тест {idx}: Превышено время выполнения")
+
+            output = "\n".join(test_outputs)
+            tests_passed = f"{passed_count} / {len(tests)} тестов пройдено"
+        else:
+            output = f"Файл тестов {json_file} не найден."
+
+    else:  # обычный запуск с пользовательскими данными
+        try:
+            result = subprocess.run(
+                ["python", temp_file],
+                input=input_data,
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            output = result.stdout + ("\n" + result.stderr if result.stderr else "")
+        except subprocess.TimeoutExpired:
+            output = "Ошибка: Превышено время выполнения (10 сек)"
+        except Exception as e:
+            output = f"Ошибка запуска кода: {e}"
 
     context = {
-        "tasks": tasks,
+        "tasks": get_task_list(),
         "selected_task": selected_task,
-        "task_text": task_text,
+        "task_text": get_task_text(selected_task),
         "code": code,
         "output": output,
+        "input_data": input_data,
+        "tests_passed": tests_passed
     }
     return render(request, "codeapp/index.html", context)
