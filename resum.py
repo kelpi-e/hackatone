@@ -156,7 +156,7 @@ class Resume:
         theoretical_summary = self.summarize_theoretical()
         practical_summary = self.summarize_practical()
 
-        print("=" * 60)
+        '''print("=" * 60)
         print("СУММАРИЗАЦИЯ РЕЗУЛЬТАТОВ СОБЕСЕДОВАНИЯ")
         print("=" * 60)
         print("\n[ХАРД СКИЛЫ]")
@@ -165,7 +165,7 @@ class Resume:
         print(theoretical_summary)
         print("\n[ПРАКТИЧЕСКОЕ ТЕСТИРОВАНИЕ]")
         print(practical_summary)
-        print("=" * 60)
+        print("=" * 60)'''
 
         return {
             "hard_skills_summary": hard_summary,
@@ -212,7 +212,7 @@ class Resume:
                         """.strip()
 
 
-if __name__ == "__main__":
+'''if __name__ == "__main__":
     obj = Resume(
         api_key="sk-EntOXD173KXh0i-jb0esww",
         base_url="https://llm.t1v.scibox.tech/v1",
@@ -234,3 +234,4 @@ if __name__ == "__main__":
     print("ПОЛНЫЙ ТЕКСТ РАПОРТА:")
     print("=" * 60)
     print(full_text)
+'''
