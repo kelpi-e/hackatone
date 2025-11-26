@@ -116,7 +116,7 @@ def run_code(request):
     # ------------------------------
     suspicious = check_suspicious_code(code)
     if suspicious:
-        warning_msg = "⚠ Подозрительные символы или возможный код ИИ/копипаста обнаружены:\n"
+        warning_msg = "Подозрительные символы или возможный код ИИ/копипаста обнаружены:\n"
         for pos, desc in suspicious:
             warning_msg += f"позиция {pos}: {desc}\n"
         # Добавляем в лог и выводим на экран
