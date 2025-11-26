@@ -2,10 +2,14 @@ import os
 import json
 import subprocess
 import unicodedata
+import shutil
 from django.shortcuts import render, redirect
 from django.contrib.auth import login, logout
-from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
 from django.conf import settings
+from .forms import UserRegistrationForm, UserLoginForm
+from .models import User
 
 # =============================================================================
 # Пути и настройки
@@ -26,6 +30,23 @@ SUSPICIOUS_CHARS = {
 # =============================================================================
 # Вспомогательные функции
 # =============================================================================
+def get_python_command():
+    """
+    Определяет доступную команду Python (python или python3).
+    Возвращает 'python3' если доступен, иначе 'python'.
+    """
+    # Кэшируем результат, чтобы не проверять каждый раз
+    if not hasattr(get_python_command, '_cached'):
+        # Проверяем python3 сначала (чаще доступен на Mac/Linux)
+        if shutil.which('python3'):
+            get_python_command._cached = 'python3'
+        elif shutil.which('python'):
+            get_python_command._cached = 'python'
+        else:
+            # Fallback на python3, если ничего не найдено
+            get_python_command._cached = 'python3'
+    return get_python_command._cached
+
 def get_task_list():
     if not os.path.exists(TASKS_DIR):
         return []
@@ -54,28 +75,54 @@ def check_suspicious_code(code_text):
 # Авторизация
 # =============================================================================
 def register(request):
+    if request.user.is_authenticated:
+        return redirect('runcode')
+    
     if request.method == "POST":
-        form = UserCreationForm(request.POST)
+        form = UserRegistrationForm(request.POST)
         if form.is_valid():
             user = form.save()
-            login(request, user)
+            # Явно указываем backend для логина
+            login(request, user, backend='codeapp.backends.UsernameOnlyBackend')
+            messages.success(request, f'Добро пожаловать, {user.username}!')
             return redirect('runcode')
     else:
-        form = UserCreationForm()
-    return render(request, "registration/register.html", {"form": form})
+        form = UserRegistrationForm()
+    return render(request, "codeapp/auth.html", {
+        "form": form, 
+        "form_type": "register",
+        "title": "Регистрация"
+    })
 
 def user_login(request):
+    if request.user.is_authenticated:
+        return redirect('runcode')
+    
     if request.method == "POST":
-        form = AuthenticationForm(data=request.POST)
+        form = UserLoginForm(data=request.POST)
         if form.is_valid():
-            login(request, form.get_user())
-            return redirect('runcode')
+            username = form.cleaned_data.get('username')
+            try:
+                user = User.objects.get(username=username)
+                # Явно указываем backend для логина
+                login(request, user, backend='codeapp.backends.UsernameOnlyBackend')
+                messages.success(request, f'Добро пожаловать, {user.username}!')
+                return redirect('runcode')
+            except User.DoesNotExist:
+                messages.error(request, 'Пользователь с таким никнеймом не найден.')
+        else:
+            messages.error(request, 'Ошибка входа. Проверьте введенные данные.')
     else:
-        form = AuthenticationForm()
-    return render(request, "registration/login.html", {"form": form})
+        form = UserLoginForm()
+    return render(request, "codeapp/auth.html", {
+        "form": form,
+        "form_type": "login",
+        "title": "Вход"
+    })
 
 def user_logout(request):
     logout(request)
+    messages.success(request, 'Вы успешно вышли из системы.')
     return redirect('home')
 
 # =============================================================================
@@ -84,6 +131,7 @@ def user_logout(request):
 def home(request):
     return render(request, "index.html")
 
+@login_required
 def index(request):
     tasks = get_task_list()
     selected = request.GET.get("task") or (tasks[0] if tasks else None)
@@ -99,11 +147,13 @@ def index(request):
         "test_results": [],
         "test_mode": False,
         "language": language,
+        "code_executed": False,  # Код еще не был запущен
     })
 
 # =============================================================================
 # Главная функция — запуск и тестирование кода (Python + C++)
 # =============================================================================
+@login_required
 def run_code(request):
     if request.method != "POST":
         return redirect("runcode")
@@ -141,6 +191,7 @@ def run_code(request):
             warning += f"  → позиция {pos}: {name}\n"
         with open(ANALYSIS_LOG, "a", encoding="utf-8") as log:
             log.write("ПРЕДУПРЕЖДЕНИЕ: подозрительный код\n" + warning + "\n")
+        # Предупреждения показываем только в режиме ручного запуска
         if not test_mode:
             output += warning + "\n"
 
@@ -166,7 +217,9 @@ def run_code(request):
         result = subprocess.run(compile_cmd, capture_output=True, text=True, timeout=15)
         if result.returncode != 0:
             compile_error = result.stderr.strip() or "Ошибка компиляции"
-            output += f"Ошибка компиляции:\n{compile_error}\n"
+            # Ошибки компиляции показываем только в режиме ручного запуска
+            if not test_mode:
+                output += f"Ошибка компиляции:\n{compile_error}\n"
             with open(ANALYSIS_LOG, "a", encoding="utf-8") as log:
                 log.write(f"Ошибка g++:\n{compile_error}\n\n")
 
@@ -186,7 +239,7 @@ def run_code(request):
 
                     try:
                         res = subprocess.run(
-                            ["python", src_path],
+                            [get_python_command(), src_path],
                             input=test_input + "\n",
                             capture_output=True,
                             text=True,
@@ -210,12 +263,25 @@ def run_code(request):
                         test_results.append({"number": i, "timeout": True, "passed": False})
                 tests_passed = f"{passed}/{len(tests)}"
             except Exception as e:
-                output += f"Ошибка тестов: {e}"
+                # Ошибки тестов не добавляем в output, они отображаются во вкладке "Тест-кейсы"
+                # Но логируем для отладки
+                with open(ANALYSIS_LOG, "a", encoding="utf-8") as log:
+                    log.write(f"Ошибка тестов: {e}\n")
+                # Добавляем в test_results для отображения
+                test_results.append({
+                    "number": 0,
+                    "input": "",
+                    "expected": "",
+                    "actual": "",
+                    "error": f"Ошибка запуска тестов: {e}",
+                    "passed": False,
+                    "timeout": False
+                })
 
     # === Обычный запуск (Python или скомпилированный C++) ===
     if not test_mode and not compile_error:
         try:
-            cmd = ["python", src_path] if language == "Python" else [exe_path]
+            cmd = [get_python_command(), src_path] if language == "Python" else [exe_path]
             proc = subprocess.run(
                 cmd,
                 input=user_input.replace("\r\n", "\n") + "\n",
@@ -252,15 +318,20 @@ def run_code(request):
             pass
 
     # === Ответ ===
+    # В режиме тестов output должен быть пустым (или содержать только ошибки компиляции для C++)
+    # Все результаты тестов отображаются во вкладке "Тест-кейсы"
+    # Если код был запущен, но ничего не вывел - это нормально, показываем пустую строку
+    
     return render(request, "codeapp/ide.html", {
         "tasks": get_task_list(),
         "selected_task": selected_task,
         "task_text": get_task_text(selected_task),
         "code": code,
-        "output": output or "Готово!",
+        "output": output,  # Может быть пустым, если код ничего не вывел - это нормально
         "input_data": user_input,
         "tests_passed": tests_passed,
         "test_results": test_results,
         "test_mode": test_mode,
         "language": language,
+        "code_executed": True,  # Флаг, что код был запущен
     })

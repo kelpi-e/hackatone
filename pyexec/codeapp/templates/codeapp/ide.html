@@ -1131,11 +1131,23 @@
                         </div>
                     </a>
                     <div class="navigation-right">
-                        <a href="{% url 'runcode' %}">
-                            <div class="navigation-cta btn btn-primary">
-                                <span>Начать кодить</span>
-                            </div>
-                        </a>
+                        {% if user.is_authenticated %}
+                            <span class="navigation-link" style="color: var(--color-on-surface-secondary, #6c757d); margin-right: 12px;">
+                                {{ user.username }} ({{ user.get_role_display }})
+                            </span>
+                            <a href="{% url 'logout' %}">
+                                <div class="navigation-link"><span>Выйти</span></div>
+                            </a>
+                        {% else %}
+                            <a href="{% url 'login' %}">
+                                <div class="navigation-link"><span>Вход</span></div>
+                            </a>
+                            <a href="{% url 'register' %}">
+                                <div class="navigation-cta btn btn-primary">
+                                    <span>Регистрация</span>
+                                </div>
+                            </a>
+                        {% endif %}
                     </div>
                     <button id="navToggle" aria-expanded="false" aria-label="Открыть меню навигации" class="navigation-toggle">
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
@@ -1167,9 +1179,21 @@
                     <a href="{% url 'runcode' %}">
                         <div class="navigation-mobile-link"><span>Редактор</span></div>
                     </a>
-                    <a href="{% url 'runcode' %}">
-                        <div class="navigation-mobile-cta btn btn-primary"><span>Начать кодить</span></div>
-                    </a>
+                    {% if user.is_authenticated %}
+                        <div class="navigation-mobile-link" style="color: var(--color-on-surface-secondary, #6c757d);">
+                            <span>{{ user.username }} ({{ user.get_role_display }})</span>
+                        </div>
+                        <a href="{% url 'logout' %}">
+                            <div class="navigation-mobile-link"><span>Выйти</span></div>
+                        </a>
+                    {% else %}
+                        <a href="{% url 'login' %}">
+                            <div class="navigation-mobile-link"><span>Вход</span></div>
+                        </a>
+                        <a href="{% url 'register' %}">
+                            <div class="navigation-mobile-cta btn btn-primary"><span>Регистрация</span></div>
+                        </a>
+                    {% endif %}
                 </div>
             </div>
             <div class="navigation-container2">
@@ -1243,8 +1267,9 @@
                     <div class="editor-panel" id="code-panel">
                         <div class="code-header">
                             <div class="code-header-left">
-                                <select class="lang-selector" disabled>
-                                    <option>Python</option>
+                                <select class="lang-selector" id="language-selector">
+                                    <option value="Python" {% if language == "Python" %}selected{% endif %}>Python</option>
+                                    <option value="C++" {% if language == "C++" %}selected{% endif %}>C++</option>
                                 </select>
                             </div>
                             <div class="code-actions">
@@ -1256,6 +1281,7 @@
                             <form method="post" action="{% url 'run_code' %}" id="code-form">
                                 {% csrf_token %}
                                 <input type="hidden" name="task" value="{{ selected_task }}">
+                                <input type="hidden" name="language" id="language-input" value="{{ language|default:'Python' }}">
                                 <textarea id="code" name="code">{{ code|default:"" }}</textarea>
                                 <textarea id="input_data" name="input_data" style="display: none;">{{ input_data|default:"" }}</textarea>
                             </form>
@@ -1270,7 +1296,7 @@
                             <button class="output-tab {% if test_mode %}active{% endif %}" onclick="switchTab('testcases')">Тест-кейсы</button>
                         </div>
                         <div class="output-content {% if not test_mode %}active{% endif %}" id="output-content" {% if test_mode %}style="display: none;"{% endif %}>
-                            <pre id="output">{% if output %}{{ output }}{% else %}Запустите код, чтобы увидеть результат...{% endif %}</pre>
+                            <pre id="output">{% if code_executed %}{{ output|default:"Код выполнен успешно. Вывод пуст." }}{% else %}Запустите код, чтобы увидеть результат...{% endif %}</pre>
                         </div>
                         <div class="output-content" id="input-content" style="display: none;">
                             <div class="input-section">
@@ -1368,6 +1394,7 @@
     <!-- CodeMirror Scripts -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/codemirror.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/mode/python/python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/mode/clike/clike.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/addon/hint/show-hint.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/addon/hint/anyword-hint.min.js"></script>
 
@@ -1376,13 +1403,19 @@
       document.addEventListener('DOMContentLoaded', function() {
         const textarea = document.getElementById('code');
         const codeEditorWrapper = document.querySelector('.code-editor-wrapper');
+        const languageSelector = document.getElementById('language-selector');
+        const languageInput = document.getElementById('language-input');
 
         if (textarea && codeEditorWrapper) {
           console.log('Initializing CodeMirror...');
 
+          // Get initial language
+          const initialLanguage = languageInput ? languageInput.value : 'Python';
+          const initialMode = initialLanguage === 'C++' ? 'text/x-c++src' : 'python';
+
           // Create editor
           var editor = CodeMirror.fromTextArea(textarea, {
-            mode: "python",
+            mode: initialMode,
             lineNumbers: true,
             indentUnit: 4,
             theme: "eclipse",
@@ -1394,6 +1427,39 @@
               return line;
             }
           });
+
+          // Store editor globally for resize handlers
+          window.editor = editor;
+
+          // Handle language change
+          if (languageSelector && languageInput) {
+            languageSelector.addEventListener('change', function() {
+              const selectedLanguage = this.value;
+              const newMode = selectedLanguage === 'C++' ? 'text/x-c++src' : 'python';
+              
+              // Update CodeMirror mode
+              editor.setOption('mode', newMode);
+              
+              // Force refresh to apply syntax highlighting immediately
+              editor.refresh();
+              
+              // Update hidden input
+              languageInput.value = selectedLanguage;
+              
+              console.log('Language changed to:', selectedLanguage, 'Mode:', newMode);
+              
+              // Optional: Show a brief visual feedback
+              const wrapper = editor.getWrapperElement();
+              wrapper.style.transition = 'background-color 0.2s';
+              wrapper.style.backgroundColor = 'rgba(0, 102, 255, 0.05)';
+              setTimeout(function() {
+                wrapper.style.backgroundColor = '';
+                setTimeout(function() {
+                  wrapper.style.transition = '';
+                }, 200);
+              }, 200);
+            });
+          }
 
           // Function to update gutter width based on line count
           const updateGutterWidth = function(cm) {
