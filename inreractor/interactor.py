@@ -1,11 +1,20 @@
 import numpy as np
 from openai import OpenAI
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, TYPE_CHECKING
 import json
+
+if TYPE_CHECKING:
+    from hackatone.task_search import TaskSearcher
+else:
+    # Для обратной совместимости при отсутствии модуля
+    try:
+        from hackatone.task_search import TaskSearcher
+    except ImportError:
+        TaskSearcher = None
 
 
 class Interactor:
-    def __init__(self, key: Optional[str] = None):
+    def __init__(self, key: Optional[str] = None, task_searcher: Optional['TaskSearcher'] = None):
         self.client = OpenAI(
             api_key=key or "sk-EntOXD173KXh0i-jb0esww",
             base_url="https://llm.t1v.scibox.tech/v1"
@@ -22,6 +31,14 @@ class Interactor:
         self.termination_reason: Optional[str] = None
         self.hard_desc_attempts: int = 0
         self.answer_attempts: Dict[int, int] = {}
+        
+        # Практические задачи
+        self.task_searcher: Optional['TaskSearcher'] = task_searcher
+        self.recommended_tasks: List[Dict[str, Any]] = []
+        self.current_task: Optional[Dict[str, Any]] = None
+        self.current_task_idx: int = -1
+        self.task_solution_attempts: Dict[int, int] = {}  # Индекс задачи -> количество попыток
+        self.task_dialogue_history: List[Dict[str, Any]] = []  # История диалога по текущей задаче
 
     def _validate_input(self, text: str, context: str = "answer") -> Dict[str, Any]:
         """
@@ -53,7 +70,7 @@ class Interactor:
             "/no_think Ты модератор технического интервью. "
             "Проанализируй текст и определи:\n"
             "1. Является ли текст провокационным, оскорбительным, неуместным или нарушающим правила общения?\n"
-            "2. Является ли текст информативным и содержательным (не просто 'да', 'нет', 'не знаю', случайные символы)?\n\n"
+            "2. Является ли текст осмысленным и относящимся к теме вопроса? Ответы типа 'не знаю', 'не понимаю' являются осмысленными.\n"
             "Верни JSON строго с ключами:\n"
             "{\n"
             '  \"is_provocative\": true/false,\n'
@@ -112,7 +129,7 @@ class Interactor:
                 "valid": False,
                 "reason": "too_short",
                 "is_provocative": False,
-                "message": "Ваше сообщение не понятно. Пожалуйста, попробуйте еще раз."
+                "message": "Ваше сообщение не понятно, либо произошла ошибка. Пожалуйста, попробуйте еще раз."
             }
 
     def put_hard_desc(self, desc: str) -> Dict[str, Any]:
@@ -549,6 +566,455 @@ class Interactor:
         self.candidate_summary = summary
         return summary
 
+    def get_recommended_tasks(self, task_searcher: Optional['TaskSearcher'] = None, top_k: int = 5) -> List[Dict[str, Any]]:
+        """
+        Получает список рекомендованных задач для кандидата на основе его резюме.
+        Возвращает только описание задач без лишней информации о навыках.
+        
+        Args:
+            task_searcher: экземпляр TaskSearcher (если не передан, используется self.task_searcher)
+            top_k: количество задач для подбора
+        
+        Returns:
+            Список словарей с задачами:
+            {
+                "task_index": int,
+                "condition": str,
+                "description": str,
+                "similarity": float
+            }
+        """
+        if not self.candidate_summary:
+            self.build_candidate_summary()
+        
+        searcher = task_searcher or self.task_searcher
+        if not searcher:
+            raise ValueError("TaskSearcher не задан. Передай его в конструктор или в этот метод.")
+        
+        # Ищем задачи по резюме кандидата
+        search_results = searcher.search(self.candidate_summary, top_k=top_k)
+        
+        recommended = []
+        for task_index, condition, description, similarity in search_results:
+            recommended.append({
+                "task_index": task_index,
+                "condition": condition,
+                "description": description,
+                "similarity": similarity
+            })
+        
+        self.recommended_tasks = recommended
+        return recommended
+    
+    def get_task_description_for_candidate(self) -> Optional[str]:
+        """
+        Возвращает четкое описание текущей задачи для кандидата (без лишней информации).
+        
+        Returns:
+            Строка с описанием задачи или None, если задача не выбрана
+        """
+        if not self.current_task:
+            return None
+        
+        condition = self.current_task.get("condition", "").strip()
+        description = self.current_task.get("description", "").strip()
+        
+        if condition:
+            return f"{condition}\n\n{description}"
+        return description
+    
+    def start_practice_stage(self, task_searcher: Optional['TaskSearcher'] = None, top_k: int = 5) -> Dict[str, Any]:
+        """
+        Начинает этап практических задач. Подбирает задачи и переводит интервью в стадию "practice".
+        
+        Args:
+            task_searcher: экземпляр TaskSearcher
+            top_k: количество задач для подбора
+        
+        Returns:
+            {
+                "success": bool,
+                "message": str,
+                "tasks_count": int  # количество подобранных задач
+            }
+        """
+        if self.terminated:
+            return {
+                "success": False,
+                "message": "Интервью было прервано.",
+                "tasks_count": 0
+            }
+        
+        if self.stage != "theory" and self.stage != "finished":
+            return {
+                "success": False,
+                "message": "Сначала заверши теоретическую часть интервью.",
+                "tasks_count": 0
+            }
+        
+        try:
+            tasks = self.get_recommended_tasks(task_searcher, top_k)
+            if not tasks:
+                return {
+                    "success": False,
+                    "message": "Не удалось подобрать задачи. Убедись, что TaskSearcher содержит задачи.",
+                    "tasks_count": 0
+                }
+            
+            self.stage = "practice"
+            self.current_task_idx = -1
+            self.current_task = None
+            self.task_solution_attempts = {}
+            self.task_dialogue_history = []
+            
+            return {
+                "success": True,
+                "message": "",
+                "tasks_count": len(tasks)
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "message": f"Ошибка при подборе задач: {str(e)}",
+                "tasks_count": 0
+            }
+    
+    def get_next_task(self) -> Optional[Dict[str, Any]]:
+        """
+        Возвращает следующую задачу для решения.
+        
+        Returns:
+            Словарь с задачей или None, если задачи закончились
+        """
+        if self.terminated or self.stage != "practice":
+            return None
+        
+        if not self.recommended_tasks:
+            return None
+        
+        self.current_task_idx += 1
+        if self.current_task_idx >= len(self.recommended_tasks):
+            self.stage = "finished"
+            return None
+        
+        self.current_task = self.recommended_tasks[self.current_task_idx]
+        self.task_dialogue_history = []
+        self.task_solution_attempts[self.current_task_idx] = 0
+        
+        return {
+            "task_index": self.current_task["task_index"],
+            "description": self.get_task_description_for_candidate()
+        }
+    
+    def _evaluate_solution_with_llm(self, code_quality: str, solution_completeness: str, 
+                                    previous_dialogue: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Оценивает решение задачи с учетом качества кода и полноты решения.
+        
+        Args:
+            code_quality: описание качества кода (например, "хороший код", "есть ошибки", "неоптимальное решение")
+            solution_completeness: описание полноты решения (например, "полное решение", "частичное решение", "не решено")
+            previous_dialogue: история предыдущего диалога по задаче
+        
+        Returns:
+            {
+                "verdict": "mastered" | "partially_mastered" | "not_mastered" | "continue",
+                "message": str,  # сообщение для кандидата
+                "should_continue": bool  # нужно ли продолжать диалог
+            }
+        """
+        task_info = ""
+        if self.current_task:
+            condition = self.current_task.get("condition", "")
+            description = self.current_task.get("description", "")
+            task_info = f"Условие задачи: {condition}\nОписание: {description}"
+        
+        dialogue_context = ""
+        if previous_dialogue:
+            dialogue_context = "\nПредыдущий диалог:\n"
+            for entry in previous_dialogue[-3:]:  # Последние 3 записи
+                dialogue_context += f"- {entry.get('role', 'unknown')}: {entry.get('content', '')}\n"
+        
+        system_prompt = (
+            "/no_think Ты опытный технический интервьюер. "
+            "Твоя задача — оценить, владеет ли кандидат навыками, которые проверяет задача, "
+            "на основе качества кода и полноты решения.\n\n"
+            "Ты должен принять финальное решение только если:\n"
+            "1. Кандидат явно владеет навыками (mastered) — код качественный, решение полное и правильное\n"
+            "2. Кандидат явно не владеет навыками (not_mastered) — код некачественный, решение неполное или неправильное, и уже было несколько попыток\n"
+            "3. Кандидат частично владеет навыками (partially_mastered) — код приемлемый, но решение неполное, или наоборот\n\n"
+            "Если информации недостаточно для финального решения, верни 'continue'.\n\n"
+            "Формат ответа: JSON строго с ключами:\n"
+            "{\n"
+            '  \"verdict\": \"mastered\" | \"partially_mastered\" | \"not_mastered\" | \"continue\",\n'
+            '  \"message\": \"сообщение для кандидата на русском\",\n'
+            '  \"should_continue\": true/false\n'
+            "}"
+        )
+        
+        user_content = (
+            f"{task_info}\n\n"
+            f"Качество кода: {code_quality}\n"
+            f"Полнота решения: {solution_completeness}\n"
+            f"{dialogue_context}\n"
+            "Оцени решение и верни JSON."
+        )
+        
+        resp = self.client.chat.completions.create(
+            model="qwen3-coder-30b-a3b-instruct-fp8",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_content},
+            ],
+            stream=False,
+            response_format={"type": "json_object"},
+            temperature=0.0
+        )
+        
+        try:
+            data = json.loads(resp.choices[0].message.content)
+            return {
+                "verdict": data.get("verdict", "continue"),
+                "message": data.get("message", ""),
+                "should_continue": data.get("should_continue", True)
+            }
+        except Exception:
+            return {
+                "verdict": "continue",
+                "message": "Требуется дополнительная информация для оценки.",
+                "should_continue": True
+            }
+    
+    def submit_task_solution(self, code_quality: str, solution_completeness: str, 
+                            candidate_message: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Принимает информацию о решении задачи и оценивает его.
+        
+        Args:
+            code_quality: описание качества кода
+            solution_completeness: описание полноты решения
+            candidate_message: опциональное сообщение от кандидата
+        
+        Returns:
+            {
+                "success": bool,
+                "verdict": "mastered" | "partially_mastered" | "not_mastered" | "continue",
+                "message": str,  # сообщение для кандидата
+                "task_completed": bool,  # завершена ли работа с задачей
+                "needs_retry": bool  # нужно ли повторить запрос
+            }
+        """
+        if self.terminated:
+            return {
+                "success": False,
+                "message": "Интервью было прервано.",
+                "verdict": None,
+                "task_completed": False,
+                "needs_retry": False
+            }
+        
+        if self.stage != "practice":
+            return {
+                "success": False,
+                "message": "Сейчас не этап практических задач. Сначала вызови start_practice_stage().",
+                "verdict": None,
+                "task_completed": False,
+                "needs_retry": False
+            }
+        
+        if not self.current_task:
+            return {
+                "success": False,
+                "message": "Задача не выбрана. Сначала вызови get_next_task().",
+                "verdict": None,
+                "task_completed": False,
+                "needs_retry": False
+            }
+        
+        # Добавляем сообщение кандидата в историю диалога
+        if candidate_message:
+            validation = self._validate_input(candidate_message, context="answer")
+            if validation["is_provocative"]:
+                self.terminated = True
+                self.termination_reason = "Провокационное поведение при решении задачи"
+                return {
+                    "success": False,
+                    "message": validation["message"],
+                    "verdict": None,
+                    "task_completed": False,
+                    "needs_retry": False
+                }
+            
+            if not validation["valid"]:
+                return {
+                    "success": False,
+                    "message": validation["message"],
+                    "verdict": None,
+                    "task_completed": False,
+                    "needs_retry": True
+                }
+            
+            self.task_dialogue_history.append({
+                "role": "candidate",
+                "content": candidate_message
+            })
+        
+        # Оцениваем решение
+        eval_result = self._evaluate_solution_with_llm(
+            code_quality, 
+            solution_completeness,
+            self.task_dialogue_history
+        )
+        
+        verdict = eval_result.get("verdict", "continue")
+        message = eval_result.get("message", "")
+        should_continue = eval_result.get("should_continue", True)
+        
+        # Сохраняем в историю
+        self.chat_history.append({
+            "type": "practice_task",
+            "task_index": self.current_task["task_index"],
+            "task_idx": self.current_task_idx,
+            "code_quality": code_quality,
+            "solution_completeness": solution_completeness,
+            "candidate_message": candidate_message,
+            "verdict": verdict,
+            "message": message,
+            "attempt": self.task_solution_attempts.get(self.current_task_idx, 0) + 1
+        })
+        
+        self.task_dialogue_history.append({
+            "role": "evaluator",
+            "content": message
+        })
+        
+        # Если решение принято, завершаем работу с задачей
+        task_completed = verdict in ["mastered", "partially_mastered", "not_mastered"]
+        
+        if task_completed:
+            self.task_solution_attempts[self.current_task_idx] = self.task_solution_attempts.get(self.current_task_idx, 0) + 1
+        else:
+            # Увеличиваем счетчик попыток
+            self.task_solution_attempts[self.current_task_idx] = self.task_solution_attempts.get(self.current_task_idx, 0) + 1
+            
+            # Если слишком много попыток, завершаем задачу как "not_mastered"
+            if self.task_solution_attempts[self.current_task_idx] >= 5:
+                verdict = "not_mastered"
+                message = "Превышено количество попыток. Задача помечена как не решенная."
+                task_completed = True
+                self.chat_history[-1]["verdict"] = verdict
+                self.chat_history[-1]["message"] = message
+        
+        return {
+            "success": True,
+            "verdict": verdict,
+            "message": message,
+            "task_completed": task_completed,
+            "needs_retry": not task_completed and should_continue
+        }
+    
+    def continue_task_dialogue(self, candidate_message: str) -> Dict[str, Any]:
+        """
+        Продолжает диалог о текущей задаче. Используется для уточняющих вопросов и обсуждения решения.
+        
+        Args:
+            candidate_message: сообщение кандидата
+        
+        Returns:
+            {
+                "success": bool,
+                "message": str,  # ответ интервьюера
+                "needs_retry": bool
+            }
+        """
+        if self.terminated:
+            return {
+                "success": False,
+                "message": "Интервью было прервано.",
+                "needs_retry": False
+            }
+        
+        if self.stage != "practice" or not self.current_task:
+            return {
+                "success": False,
+                "message": "Сейчас нет активной задачи для обсуждения.",
+                "needs_retry": False
+            }
+        
+        validation = self._validate_input(candidate_message, context="answer")
+        
+        if validation["is_provocative"]:
+            self.terminated = True
+            self.termination_reason = "Провокационное поведение при обсуждении задачи"
+            return {
+                "success": False,
+                "message": validation["message"],
+                "needs_retry": False
+            }
+        
+        if not validation["valid"]:
+            return {
+                "success": False,
+                "message": validation["message"],
+                "needs_retry": True
+            }
+        
+        # Генерируем ответ интервьюера на основе контекста задачи
+        task_info = self.get_task_description_for_candidate()
+        dialogue_context = "\n".join([
+            f"{entry.get('role', 'unknown')}: {entry.get('content', '')}"
+            for entry in self.task_dialogue_history[-5:]  # Последние 5 записей
+        ])
+        
+        system_prompt = (
+            "/no_think Ты технический интервьюер, который обсуждает решение задачи с кандидатом. "
+            "Твоя задача — задавать уточняющие вопросы, помогать разобраться в проблеме, "
+            "но не давать прямых ответов. Будь вежливым и профессиональным.\n\n"
+            "Ответ должен быть кратким (1-2 предложения) и на русском языке."
+        )
+        
+        user_content = (
+            f"Задача:\n{task_info}\n\n"
+            f"Контекст диалога:\n{dialogue_context}\n\n"
+            f"Сообщение кандидата: {candidate_message}\n\n"
+            "Ответь кандидату."
+        )
+        
+        try:
+            resp = self.client.chat.completions.create(
+                model="qwen3-coder-30b-a3b-instruct-fp8",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_content},
+                ],
+                stream=False,
+                temperature=0.7
+            )
+            
+            response_message = resp.choices[0].message.content.strip()
+            
+            # Сохраняем в историю
+            self.task_dialogue_history.append({
+                "role": "candidate",
+                "content": candidate_message
+            })
+            self.task_dialogue_history.append({
+                "role": "interviewer",
+                "content": response_message
+            })
+            
+            return {
+                "success": True,
+                "message": response_message,
+                "needs_retry": False
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "message": f"Ошибка при генерации ответа: {str(e)}",
+                "needs_retry": False
+            }
+    
     def reset(self):
         """Полностью сбрасывает состояние интервью."""
         self.hard_desc = None
@@ -563,3 +1029,10 @@ class Interactor:
         self.termination_reason = None
         self.hard_desc_attempts = 0
         self.answer_attempts = {}
+        
+        # Практические задачи
+        self.recommended_tasks = []
+        self.current_task = None
+        self.current_task_idx = -1
+        self.task_solution_attempts = {}
+        self.task_dialogue_history = []
