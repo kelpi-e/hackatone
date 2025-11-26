@@ -3,47 +3,76 @@ import json
 import subprocess
 from django.shortcuts import render, redirect
 from django.conf import settings
+import unicodedata
 
 TASKS_DIR = os.path.join(settings.BASE_DIR, "codeapp", "tests")
 ANALYSIS_LOG = os.path.join(settings.BASE_DIR, "code_analysis.log")
 
+# Символы, часто появляющиеся при копипасте или генерации ИИ
+SUSPICIOUS_CHARS = {
+    "\u00A0": "NBSP",
+    "\u200B": "ZERO WIDTH SPACE",
+    "\u200C": "ZERO WIDTH NON-JOINER",
+    "\u200D": "ZERO WIDTH JOINER",
+    "\u2060": "WORD JOINER",
+    "\ufeff": "BOM",
+    "\u2013": "EN DASH",
+    "\u2014": "EM DASH",
+    "\u2018": "LEFT SINGLE QUOTE",
+    "\u2019": "RIGHT SINGLE QUOTE",
+    "\u201C": "LEFT DOUBLE QUOTE",
+    "\u201D": "RIGHT DOUBLE QUOTE",
+}
 
 def home(request):
     return render(request, "index.html")
 
 
 def get_task_list():
-    """Возвращает список задач по .txt файлам"""
     if not os.path.exists(TASKS_DIR):
         return []
     return [f for f in os.listdir(TASKS_DIR) if f.endswith(".txt")]
 
 
 def get_task_text(task_file):
-    """Читает текст задачи из .txt"""
     if not task_file:
         return ""
-    path = os.path.join(TASKS_DIR, task_file)
-    if not os.path.exists(path):
+    full = os.path.join(TASKS_DIR, task_file)
+    if not os.path.exists(full):
         return f"Файл не найден: {task_file}"
-    with open(path, encoding="utf-8") as f:
+    with open(full, encoding="utf-8") as f:
         return f.read()
+
+
+def check_suspicious_code(code_text):
+    """Проверяет код на невидимые и подозрительные символы"""
+    found = []
+    for i, ch in enumerate(code_text):
+        if ch in SUSPICIOUS_CHARS:
+            found.append((i+1, SUSPICIOUS_CHARS[ch]))
+        elif ord(ch) > 127 and ch not in SUSPICIOUS_CHARS:
+            found.append((i+1, f"UNEXPECTED CHAR {unicodedata.name(ch, '?')}"))
+    return found
 
 
 def index(request):
     tasks = get_task_list()
-    selected_task = request.GET.get("task") or (tasks[0] if tasks else None)
-    task_text = get_task_text(selected_task)
-    context = {
-        "tasks": tasks,
-        "selected_task": selected_task,
-        "task_text": task_text,
-        "code": "",
-        "output": "",
-        "input_data": "",
-        "tests_passed": None
-    }
-    return render(request, "codeapp/index.html", context)
+    selected = request.GET.get("task") or (tasks[0] if tasks else None)
+    text = get_task_text(selected)
+
+    return render(
+        request,
+        "codeapp/index.html",
+        {
+            "tasks": tasks,
+            "selected_task": selected,
+            "task_text": text,
+            "code": "",
+            "output": "",
+            "input_data": "",
+            "tests_passed": None
+        }
+    )
 
 
 def run_code(request):
@@ -51,103 +80,143 @@ def run_code(request):
         return redirect("index")
 
     code = request.POST.get("code", "")
-    selected_task = request.POST.get("task")
+    selected = request.POST.get("task")
     mode = request.POST.get("mode", "run_code")
-    input_data = request.POST.get("input_data", "")
+    user_input = request.POST.get("input_data", "")
 
-    temp_file = os.path.join(settings.BASE_DIR, "temp_code.py")
-    with open(temp_file, "w", encoding="utf-8") as f:
+    temp = os.path.join(settings.BASE_DIR, "temp_code.py")
+    with open(temp, "w", encoding="utf-8") as f:
         f.write(code)
 
     output = ""
     tests_passed = None
 
-    # Запуск статического анализа в фоне и запись в файл
+    # ------------------------------
+    # Статический анализ через docker
+    # ------------------------------
     try:
-        with open(ANALYSIS_LOG, "w", encoding="utf-8") as log_file:
+        with open(ANALYSIS_LOG, "w", encoding="utf-8") as log:
             subprocess.run(
-                [
-                    "docker", "run", "--rm",
-                    "-v", f"{temp_file}:/usr/src/app/temp_code.py",
-                    "python-analyzer",
-                    "temp_code.py"
-                ],
-                stdout=log_file,
-                stderr=log_file,
+                ["docker", "run", "--rm",
+                 "-v", f"{temp}:/usr/src/app/temp_code.py",
+                 "python-analyzer",
+                 "temp_code.py"],
+                stdout=log,
+                stderr=log,
                 text=True,
-                timeout=20
+                timeout=5
             )
     except Exception as e:
-        with open(ANALYSIS_LOG, "a", encoding="utf-8") as log_file:
-            log_file.write(f"Ошибка статического анализа: {e}\n")
+        with open(ANALYSIS_LOG, "a", encoding="utf-8") as log:
+            log.write(f"Ошибка анализа: {e}\n")
 
-    # Прогон по тестам
+    # ------------------------------
+    # Проверка на подозрительные символы
+    # ------------------------------
+    suspicious = check_suspicious_code(code)
+    if suspicious:
+        warning_msg = "⚠ Подозрительные символы или возможный код ИИ/копипаста обнаружены:\n"
+        for pos, desc in suspicious:
+            warning_msg += f"позиция {pos}: {desc}\n"
+        # Добавляем в лог и выводим на экран
+        with open(ANALYSIS_LOG, "a", encoding="utf-8") as log:
+            log.write("\n=== Предупреждение о подозрительном коде ===\n")
+            log.write(warning_msg)
+            log.write("=========================\n")
+        output = warning_msg + "\n" + output
+
+    # ------------------------------
+    # Прогон тестов
+    # ------------------------------
     if mode == "run_tests":
-        json_file = selected_task.replace(".txt", ".json")
+        json_file = selected.replace(".txt", ".json")
         json_path = os.path.join(TASKS_DIR, json_file)
+
         if os.path.exists(json_path):
             try:
                 with open(json_path, "r", encoding="utf-8") as f:
                     tests = json.load(f)
             except Exception as e:
-                output = f"Ошибка чтения файла тестов: {e}"
                 tests = []
+                output += f"Ошибка чтения тестов: {e}\n"
 
-            passed_count = 0
-            test_outputs = []
+            logs = []
+            passed = 0
 
-            for idx, test in enumerate(tests, 1):
-                test_input = "\n".join(map(str, test.get("input", [])))
-                expected_output = str(test.get("expected", "")).strip()
+            for i, test in enumerate(tests, start=1):
+                test_input = " ".join(str(x) for x in test.get("input", []))
+                expected = str(test.get("expected", "")).strip()
+
                 try:
-                    result = subprocess.run(
-                        ["python", temp_file],
+                    res = subprocess.run(
+                        ["python", temp],
                         input=test_input,
                         capture_output=True,
                         text=True,
                         timeout=5
                     )
-                    actual_output = result.stdout.strip()
-                    error_output = result.stderr.strip()
-                    passed = actual_output == expected_output and not error_output
-                    if passed:
-                        passed_count += 1
 
-                    if error_output:
-                        test_outputs.append(f"Тест {idx}: Ошибка\n{error_output}")
+                    actual = res.stdout.strip()
+                    err = res.stderr.strip()
+                    ok = (actual == expected) and not err
+
+                    if ok:
+                        passed += 1
+                        logs.append(f"Тест {i}: ✓")
                     else:
-                        test_outputs.append(f"Тест {idx}: {actual_output}")
+                        if err:
+                            logs.append(f"Тест {i}: ✗ (ошибка)\n{err}")
+                        else:
+                            logs.append(f"Тест {i}: ✗ (неверный результат)")
 
                 except subprocess.TimeoutExpired:
-                    test_outputs.append(f"Тест {idx}: Превышено время выполнения")
+                    logs.append(f"Тест {i}: ✗ (таймаут)")
 
-            output = "\n".join(test_outputs)
-            tests_passed = f"{passed_count} / {len(tests)} тестов пройдено"
+            output += "\n" + "\n".join(logs)
+            tests_passed = f"{passed} / {len(tests)}"
+
+            # Добавляем результаты тестов в лог
+            try:
+                with open(ANALYSIS_LOG, "a", encoding="utf-8") as log:
+                    log.write("\n=== Результаты тестов ===\n")
+                    for line in logs:
+                        log.write(line + "\n")
+                    log.write(f"Итог: {passed} / {len(tests)}\n")
+                    log.write("=========================\n")
+            except:
+                pass
+
         else:
-            output = f"Файл тестов {json_file} не найден."
+            output += f"\nФайл тестов {json_file} не найден."
 
-    else:  # обычный запуск с пользовательскими данными
+    # ------------------------------
+    # Обычный запуск с пользовательским вводом
+    # ------------------------------
+    else:
         try:
-            result = subprocess.run(
-                ["python", temp_file],
-                input=input_data,
+            res = subprocess.run(
+                ["python", temp],
+                input=user_input,
                 capture_output=True,
                 text=True,
-                timeout=10
+                timeout=5
             )
-            output = result.stdout + ("\n" + result.stderr if result.stderr else "")
+            output += res.stdout + ("\n" + res.stderr if res.stderr else "")
         except subprocess.TimeoutExpired:
-            output = "Ошибка: Превышено время выполнения (10 сек)"
+            output += "Ошибка: таймаут"
         except Exception as e:
-            output = f"Ошибка запуска кода: {e}"
+            output += f"Ошибка запуска: {e}"
 
-    context = {
-        "tasks": get_task_list(),
-        "selected_task": selected_task,
-        "task_text": get_task_text(selected_task),
-        "code": code,
-        "output": output,
-        "input_data": input_data,
-        "tests_passed": tests_passed
-    }
-    return render(request, "codeapp/index.html", context)
+    return render(
+        request,
+        "codeapp/index.html",
+        {
+            "tasks": get_task_list(),
+            "selected_task": selected,
+            "task_text": get_task_text(selected),
+            "code": code,
+            "output": output,
+            "input_data": user_input,
+            "tests_passed": tests_passed
+        }
+    )

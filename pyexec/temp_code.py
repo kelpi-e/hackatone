@@ -3,3 +3,4 @@ def sum_positive(nums):
 
 nums = list(map(int, input().split()))
 print(sum_positive(nums))
+#rjvvtyn —
