@@ -1,5 +1,7 @@
 from django.db import models
 from django.core.validators import MinValueValidator
+from django.contrib.auth.models import AbstractUser
+from django.core.exceptions import ValidationError
 import json
 
 
@@ -85,6 +87,24 @@ class Task(models.Model):
 class Report(models.Model):
     """Модель для хранения рапортов после собеседований"""
     
+    candidate = models.ForeignKey(
+        'User',
+        on_delete=models.CASCADE,
+        related_name='reports_as_candidate',
+        limit_choices_to={'role': 'CANDIDATE'},
+        verbose_name="Кандидат",
+        help_text="Кандидат, который прошел тестирование"
+    )
+    
+    hr = models.ForeignKey(
+        'User',
+        on_delete=models.CASCADE,
+        related_name='reports_as_hr',
+        limit_choices_to={'role': 'HR'},
+        verbose_name="HR",
+        help_text="HR, к которому идет кандидат"
+    )
+    
     hard_skills_summary = models.TextField(
         verbose_name="Суммированные хард скилы",
         help_text="Обобщенная информация о технических навыках кандидата"
@@ -100,6 +120,13 @@ class Report(models.Model):
         help_text="Обобщенные результаты практических заданий и написания кода"
     )
     
+    suspicious_activity_summary = models.TextField(
+        verbose_name="Суммированная подозрительная активность",
+        help_text="Обобщенная информация о подозрительной активности кандидата (копипаст, использование ИИ и т.д.)",
+        blank=True,
+        default=""
+    )
+    
     created_at = models.DateTimeField(
         auto_now_add=True,
         verbose_name="Дата создания"
@@ -110,27 +137,17 @@ class Report(models.Model):
         verbose_name="Дата обновления"
     )
     
-    # Опциональное поле для связи с кандидатом (если понадобится в будущем)
-    candidate_name = models.CharField(
-        max_length=200,
-        blank=True,
-        null=True,
-        verbose_name="Имя кандидата",
-        help_text="Имя кандидата (опционально)"
-    )
-    
     class Meta:
         verbose_name = "Рапорт"
         verbose_name_plural = "Рапорты"
         ordering = ['-created_at']
     
     def __str__(self):
-        if self.candidate_name:
-            return f"Рапорт: {self.candidate_name} ({self.created_at.strftime('%d.%m.%Y')})"
-        return f"Рапорт от {self.created_at.strftime('%d.%m.%Y %H:%M')}"
+        return f"Рапорт: {self.candidate.username} → {self.hr.username} ({self.created_at.strftime('%d.%m.%Y')})"
     
     def get_full_summary(self):
         """Возвращает полный текст рапорта"""
+        suspicious_text = f"\n\nПодозрительная активность:\n{self.suspicious_activity_summary}" if self.suspicious_activity_summary else ""
         return f"""
 Хард скилы:
 {self.hard_skills_summary}
@@ -139,5 +156,57 @@ class Report(models.Model):
 {self.theoretical_test_summary}
 
 Практическое тестирование:
-{self.practical_test_summary}
+{self.practical_test_summary}{suspicious_text}
         """.strip()
+
+
+class User(AbstractUser):
+    """Кастомная модель пользователя с никнеймом и ролью"""
+    
+    ROLE_CHOICES = [
+        ('HR', 'HR'),
+        ('CANDIDATE', 'Кандидат'),
+    ]
+    
+    username = models.CharField(
+        max_length=150,
+        unique=True,
+        verbose_name="Никнейм",
+        help_text="Уникальный никнейм пользователя"
+    )
+    
+    role = models.CharField(
+        max_length=20,
+        choices=ROLE_CHOICES,
+        verbose_name="Роль",
+        help_text="Роль пользователя: HR или Кандидат"
+    )
+    
+    # Убираем обязательные поля email, first_name, last_name
+    email = models.EmailField(blank=True, null=True)
+    first_name = models.CharField(max_length=150, blank=True)
+    last_name = models.CharField(max_length=150, blank=True)
+    
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name="Дата регистрации"
+    )
+    
+    USERNAME_FIELD = 'username'
+    REQUIRED_FIELDS = ['role']
+    
+    class Meta:
+        verbose_name = "Пользователь"
+        verbose_name_plural = "Пользователи"
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.username} ({self.get_role_display()})"
+    
+    def is_hr(self):
+        """Проверяет, является ли пользователь HR"""
+        return self.role == 'HR'
+    
+    def is_candidate(self):
+        """Проверяет, является ли пользователь кандидатом"""
+        return self.role == 'CANDIDATE'

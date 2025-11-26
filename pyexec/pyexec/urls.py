@@ -9,6 +9,9 @@ urlpatterns = [
     path('', views.home, name='home'),                 # Главная: index.html
     path('runcode/', views.index, name='runcode'),     # Редактор: ide.html
     path('run_code/', views.run_code, name='run_code'),  # POST для запуска кода
+    path('register/', views.register, name='register'),  # Регистрация
+    path('login/', views.user_login, name='login'),      # Вход
+    path('logout/', views.user_logout, name='logout'),   # Выход
     path('admin/', admin.site.urls),
 ]
 

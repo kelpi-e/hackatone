@@ -969,11 +969,23 @@
                                 </div>
                             </a>
                             <div class="navigation-right">
-                                <a href="{% url 'runcode' %}">
-                                    <div class="navigation-cta btn btn-primary">
-                                        <span>Начать кодить</span>
-                                    </div>
-                                </a>
+                                {% if user.is_authenticated %}
+                                    <span class="navigation-link" style="color: var(--color-on-surface-secondary, #6c757d); margin-right: 12px;">
+                                        {{ user.username }} ({{ user.get_role_display }})
+                                    </span>
+                                    <a href="{% url 'logout' %}">
+                                        <div class="navigation-link"><span>Выйти</span></div>
+                                    </a>
+                                {% else %}
+                                    <a href="{% url 'login' %}">
+                                        <div class="navigation-link"><span>Вход</span></div>
+                                    </a>
+                                    <a href="{% url 'register' %}">
+                                        <div class="navigation-cta btn btn-primary">
+                                            <span>Регистрация</span>
+                                        </div>
+                                    </a>
+                                {% endif %}
                             </div>
                             <button id="navToggle" aria-expanded="false" aria-label="Открыть меню навигации" class="navigation-toggle">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
@@ -1009,11 +1021,21 @@
                                     <span>Редактор</span>
                                 </div>
                             </a>
-                            <a href="{% url 'runcode' %}">
-                                <div class="navigation-mobile-cta btn btn-primary">
-                                    <span>Начать кодить</span>
+                            {% if user.is_authenticated %}
+                                <div class="navigation-mobile-link" style="color: var(--color-on-surface-secondary, #6c757d);">
+                                    <span>{{ user.username }} ({{ user.get_role_display }})</span>
                                 </div>
-                            </a>
+                                <a href="{% url 'logout' %}">
+                                    <div class="navigation-mobile-link"><span>Выйти</span></div>
+                                </a>
+                            {% else %}
+                                <a href="{% url 'login' %}">
+                                    <div class="navigation-mobile-link"><span>Вход</span></div>
+                                </a>
+                                <a href="{% url 'register' %}">
+                                    <div class="navigation-mobile-cta btn btn-primary"><span>Регистрация</span></div>
+                                </a>
+                            {% endif %}
                         </div>
                     </div>
                     <div class="navigation-container2">

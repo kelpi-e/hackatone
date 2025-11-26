@@ -124,3 +124,12 @@ STATICFILES_DIRS = [
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Custom User Model
+AUTH_USER_MODEL = 'codeapp.User'
+
+# Custom Authentication Backend
+AUTHENTICATION_BACKENDS = [
+    'codeapp.backends.UsernameOnlyBackend',
+    'django.contrib.auth.backends.ModelBackend',  # Fallback для админки
+]

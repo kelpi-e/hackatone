@@ -3,6 +3,11 @@ import json
 import subprocess
 from django.shortcuts import render, redirect
 from django.conf import settings
+from django.contrib.auth import login, logout
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from .forms import UserRegistrationForm, UserLoginForm
+from .models import User
 import unicodedata
 
 TASKS_DIR = os.path.join(settings.BASE_DIR, "codeapp", "tests")
@@ -55,8 +60,9 @@ def check_suspicious_code(code_text):
     return found
 
 
+@login_required(login_url='/login/')
 def index(request):
-    # Уже правильно: рендерит ide.html как редактор
+    # Редактор доступен только для авторизованных пользователей
     tasks = get_task_list()
     selected = request.GET.get("task") or (tasks[0] if tasks else None)
     text = get_task_text(selected)
@@ -78,6 +84,7 @@ def index(request):
     )
 
 
+@login_required(login_url='/login/')
 def run_code(request):
     if request.method != "POST":
         return redirect("runcode")
@@ -245,3 +252,59 @@ def run_code(request):
             "test_mode": test_mode
         }
     )
+
+
+def register(request):
+    """Регистрация нового пользователя"""
+    if request.user.is_authenticated:
+        return redirect('runcode')
+    
+    if request.method == 'POST':
+        form = UserRegistrationForm(request.POST)
+        if form.is_valid():
+            user = form.save()
+            login(request, user, backend='codeapp.backends.UsernameOnlyBackend')
+            messages.success(request, f'Добро пожаловать, {user.username}!')
+            return redirect('runcode')
+    else:
+        form = UserRegistrationForm()
+    
+    return render(request, 'codeapp/auth.html', {
+        'form': form,
+        'form_type': 'register',
+        'title': 'Регистрация'
+    })
+
+
+def user_login(request):
+    """Вход пользователя (только по никнейму)"""
+    if request.user.is_authenticated:
+        return redirect('runcode')
+    
+    if request.method == 'POST':
+        form = UserLoginForm(request.POST)
+        if form.is_valid():
+            username = form.cleaned_data['username']
+            try:
+                user = User.objects.get(username=username)
+                # Вход без проверки пароля (только по никнейму)
+                login(request, user, backend='codeapp.backends.UsernameOnlyBackend')
+                messages.success(request, f'Добро пожаловать, {user.username}!')
+                return redirect('runcode')
+            except User.DoesNotExist:
+                messages.error(request, 'Пользователь с таким никнеймом не найден.')
+    else:
+        form = UserLoginForm()
+    
+    return render(request, 'codeapp/auth.html', {
+        'form': form,
+        'form_type': 'login',
+        'title': 'Вход'
+    })
+
+
+def user_logout(request):
+    """Выход пользователя"""
+    logout(request)
+    messages.success(request, 'Вы успешно вышли из системы.')
+    return redirect('home')
