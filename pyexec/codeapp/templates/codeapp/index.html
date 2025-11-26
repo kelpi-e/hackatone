@@ -1,7 +1,7 @@
 {% load static %}
 <!DOCTYPE html>
 <html lang="ru">
-  <head>
+<head>
     <title>CodeSphere - Редактор кода</title>
     <meta property="og:title" content="CodeSphere - Редактор кода" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -37,92 +37,191 @@
     <link rel="stylesheet" href="https://unpkg.com/@teleporthq/teleport-custom-scripts/dist/style.css" />
     
     <!-- CodeMirror -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/codemirror.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/codemirror.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/theme/eclipse.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/addon/hint/show-hint.min.css">
-    
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/addon/hint/show-hint.min.css">
+
     <link rel="stylesheet" href="{% static 'style.css' %}" />
     <link href="{% static 'index.css' %}" rel="stylesheet" />
     <link href="{% static 'components/navigation.css' %}" rel="stylesheet" />
     <link href="{% static 'components/footer.css' %}" rel="stylesheet" />
-    
-    <style>
+
+<style>
       .editor-section {
-        min-height: calc(100vh - 200px);
-        padding: 40px 20px;
-        background: var(--color-surface);
+        height: calc(100vh - 80px);
+        padding: 0;
+        background: var(--color-surface, #ffffff);
+        overflow: hidden;
       }
       
       .editor-container {
-        max-width: 1400px;
-        margin: 0 auto;
+    height: 100%;
+    margin: 0;
+        display: flex;
+        flex-direction: column;
       }
       
       .editor-layout {
         display: grid;
-        grid-template-columns: 1fr 5px 1fr;
-        gap: 20px;
-        height: calc(100vh - 300px);
-        margin-top: 20px;
+        grid-template-columns: 40% 12px 60%;
+        gap: 0;
+        height: calc(100vh - 104px);
+        margin: 0;
+        padding: 0;
+      }
+      
+      .task-panel {
+        display: flex;
+        flex-direction: column;
+        background: var(--color-surface, #ffffff);
+        overflow: hidden;
+        height: 100%;
+        border: 1px solid rgba(0, 0, 0, 0.1);
+        border-radius: var(--border-radius-lg, 16px);
+        box-shadow: var(--shadow-level-2, 0 8px 24px rgba(0, 0, 0, 0.1));
+        margin: 12px;
+        margin-right: 6px;
+      }
+      
+      .code-output-container {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        overflow: hidden;
+        height: 100%;
+        background: transparent;
+        margin: 12px;
+        margin-left: 6px;
       }
       
       .editor-panel {
         display: flex;
         flex-direction: column;
-        background: #ffffff;
-        border-radius: 12px;
+        background: var(--color-surface, #ffffff);
         overflow: hidden;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        flex: 1;
+        min-height: 300px;
+        height: 100%;
         border: 1px solid rgba(0, 0, 0, 0.1);
+        border-radius: var(--border-radius-lg, 16px);
+        box-shadow: var(--shadow-level-2, 0 8px 24px rgba(0, 0, 0, 0.1));
       }
       
-      .panel-header {
-        padding: 15px 20px;
-        background: #f8f9fa;
+      .task-header {
+        padding: 16px 24px;
         border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-        display: flex;
-        align-items: center;
-        gap: 10px;
+        flex-shrink: 0;
       }
       
-      .panel-title {
+      .task-title {
+    font-size: 18px;
         font-weight: 600;
         color: #212529;
+        margin-bottom: 8px;
+      }
+      
+      .task-meta {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        font-size: 14px;
+        color: #6c757d;
+      }
+      
+      .difficulty-badge {
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 600;
       }
       
       .task-selector {
-        padding: 15px 20px;
-        background: #f8f9fa;
-        border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+        padding: 16px 24px;
+        background: transparent;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+        flex-shrink: 0;
       }
       
       .task-selector label {
         display: block;
         margin-bottom: 10px;
-        font-weight: 600;
-        color: #212529;
+        font-weight: 500;
+        color: #495057;
+        font-size: 14px;
       }
       
       .task-selector select {
         width: 100%;
-        padding: 10px;
-        border-radius: 8px;
-        background: #ffffff;
-        color: #212529;
-        border: 1px solid rgba(0, 0, 0, 0.2);
-        font-family: inherit;
+        padding: 10px 16px;
+        border-radius: var(--border-radius-md, 12px);
+        background: var(--color-surface, #ffffff);
+        color: var(--color-on-surface, #212529);
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        font-family: var(--font-family-body, 'Roboto Mono', monospace);
+        font-size: 14px;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: var(--shadow-level-1, 0 0 8px rgba(0, 0, 0, 0.05));
+      }
+      
+      .task-selector select:hover {
+        border-color: var(--color-primary, #0066ff);
+        box-shadow: var(--shadow-level-2, 0 0 18px rgba(0, 102, 255, 0.15));
+        transform: translateY(-1px);
+      }
+      
+      .task-selector select:focus {
+        outline: none;
+        border-color: var(--color-primary, #0066ff);
+        box-shadow: 0 0 0 3px rgba(0, 102, 255, 0.1), var(--shadow-level-2);
       }
       
       .task-description {
-        padding: 20px;
-        background: #ffffff;
-        border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-        max-height: 200px;
-        overflow-y: auto;
+        flex: 1;
+        padding: 24px;
+        background: transparent;
+    overflow-y: auto;
         color: #212529;
-        line-height: 1.6;
+        line-height: 1.8;
         white-space: pre-wrap;
-        font-family: 'Roboto Mono', monospace;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 15px;
+        min-height: 0;
+      }
+      
+      .task-description h3 {
+        margin-top: 24px;
+        margin-bottom: 12px;
+        font-size: 16px;
+        font-weight: 600;
+      }
+      
+      .task-description code {
+        background: var(--color-surface-elevated, #f8f9fa);
+        padding: 4px 10px;
+        border-radius: var(--border-radius-sm, 6px);
+        font-family: var(--font-family-body, 'Roboto Mono', monospace);
+        font-size: 14px;
+        border: 1px solid rgba(0, 0, 0, 0.05);
+        box-shadow: var(--shadow-level-1, 0 0 8px rgba(0, 0, 0, 0.05));
+      }
+      
+      .task-description::-webkit-scrollbar {
+        width: 8px;
+      }
+      
+      .task-description::-webkit-scrollbar-track {
+        background: #f8f9fa;
+        border-radius: 10px;
+      }
+      
+      .task-description::-webkit-scrollbar-thumb {
+        background: #dee2e6;
+        border-radius: 10px;
+        transition: background 0.2s;
+      }
+      
+      .task-description::-webkit-scrollbar-thumb:hover {
+        background: #adb5bd;
       }
       
       .code-editor-wrapper {
@@ -130,15 +229,122 @@
         display: flex;
         flex-direction: column;
         min-height: 0;
+        position: relative;
+        overflow: hidden;
+        z-index: 1;
+        height: 100%;
+      }
+      
+      .code-editor-wrapper form {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        height: 100%;
+        width: 100%;
+      }
+      
+      #code {
+        display: none;
       }
       
       .CodeMirror {
-        flex: 1;
+        flex: 1 !important;
+        height: 100% !important;
+        width: 100% !important;
+        font-size: 15px;
+        font-family: var(--font-family-body, 'Roboto Mono', monospace);
+        background: var(--color-surface, #ffffff);
+        color: var(--color-on-surface, #212529);
+        border-radius: 0;
+        position: relative !important;
+        z-index: 1;
+        overflow: hidden;
+      }
+      
+      .CodeMirror-gutter-wrapper {
+        position: absolute;
+        left: 0;
+        top: 0;
         height: 100%;
-        font-size: 16px;
-        font-family: 'Roboto Mono', monospace;
-        background: #ffffff;
-        color: #212529;
+      }
+      
+      .CodeMirror-wrap {
+        height: 100% !important;
+        width: 100% !important;
+      }
+      
+      .CodeMirror-scroll {
+        padding: 16px 16px 16px 0;
+        min-height: 100%;
+        max-height: 100%;
+        overflow-x: auto;
+        overflow-y: auto;
+      }
+      
+      .CodeMirror-sizer {
+        min-height: 100% !important;
+      }
+      
+      .CodeMirror-scrollbar-filler {
+        display: none;
+      }
+      
+      .CodeMirror-gutters {
+        border-right: 1px solid rgba(0, 0, 0, 0.1);
+        background-color: #f8f9fa;
+        white-space: nowrap;
+        position: absolute;
+        left: 0;
+        top: 0;
+        min-height: 100%;
+        z-index: 3;
+        padding-right: 8px;
+        box-sizing: border-box;
+        width: auto;
+        overflow: visible;
+      }
+      
+      .CodeMirror-gutter-filler {
+        background-color: #f8f9fa;
+      }
+      
+      .CodeMirror-linenumber {
+        color: #adb5bd;
+        padding: 0 8px 0 4px;
+        min-width: 20px;
+        text-align: right;
+        white-space: nowrap;
+        box-sizing: border-box;
+        display: inline-block;
+        width: auto;
+      }
+      
+      .CodeMirror-lines {
+        padding-left: 0;
+        position: relative;
+      }
+      
+      .CodeMirror-line {
+        padding-left: 12px;
+        padding-right: 16px;
+      }
+      
+      .CodeMirror-code {
+        padding-left: 0;
+      }
+      
+      .CodeMirror-cursor {
+        border-left: 2px solid var(--color-primary, #0066ff) !important;
+        z-index: 3;
+      }
+      
+      .CodeMirror-selected {
+        background: rgba(0, 102, 255, 0.1) !important;
+      }
+      
+      .CodeMirror-focused {
+        outline: none;
       }
       
       .CodeMirror-hints {
@@ -155,38 +361,156 @@
         background: #e9ecef;
       }
       
-      .code-actions {
-        padding: 15px 20px;
-        background: #f8f9fa;
-        border-top: 1px solid rgba(0, 0, 0, 0.1);
+      .code-header {
+        padding: 12px 20px;
+        background: var(--color-surface, #ffffff);
+        border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-shrink: 0;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+        gap: 12px;
+      }
+      
+      .code-header-left {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+      
+      .lang-selector {
+        padding: 8px 16px;
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        border-radius: var(--border-radius-md, 12px);
+        background: var(--color-surface, #ffffff);
+        font-size: 14px;
+        color: var(--color-on-surface, #212529);
+        font-family: var(--font-family-body, 'Roboto Mono', monospace);
+        cursor: pointer;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: var(--shadow-level-1, 0 0 8px rgba(0, 0, 0, 0.05));
+      }
+      
+      .lang-selector:hover {
+        border-color: var(--color-primary, #0066ff);
+        box-shadow: var(--shadow-level-2, 0 0 18px rgba(0, 102, 255, 0.15));
+        transform: translateY(-1px);
       }
       
       .resizer {
-        width: 5px;
-        background: #dee2e6;
+        width: 12px;
+        background: transparent;
         cursor: col-resize;
-        transition: background 0.2s;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        grid-column: 2;
+        position: relative;
       }
       
-      .resizer:hover {
-        background: #adb5bd;
+      .resizer::before {
+        content: '';
+        position: absolute;
+        left: 50%;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: rgba(0, 0, 0, 0.1);
+        transform: translateX(-50%);
+        transition: all 0.3s ease;
+      }
+      
+      .resizer:hover::before {
+        background: linear-gradient(to bottom, var(--color-primary, #0066ff), var(--color-accent, #00a3b8));
+        width: 4px;
+        box-shadow: 0 0 8px rgba(0, 102, 255, 0.3);
+      }
+      
+      .vertical-resizer {
+        width: 100%;
+        height: 12px;
+        background: transparent;
+        cursor: row-resize;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        flex-shrink: 0;
+        position: relative;
+        margin: 0;
+      }
+      
+      .vertical-resizer::before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: rgba(0, 0, 0, 0.1);
+        transform: translateY(-50%);
+        transition: all 0.3s ease;
+      }
+      
+      .vertical-resizer:hover::before {
+        background: linear-gradient(to right, var(--color-primary, #0066ff), var(--color-accent, #00a3b8));
+        height: 4px;
+        box-shadow: 0 0 8px rgba(0, 102, 255, 0.3);
       }
       
       .output-panel {
         display: flex;
         flex-direction: column;
+        flex: 0 0 250px;
+        min-height: 200px;
+        max-height: 400px;
+        background: var(--color-surface, #ffffff);
+        border: 1px solid rgba(0, 0, 0, 0.1);
+        border-radius: var(--border-radius-lg, 16px);
+        box-shadow: var(--shadow-level-2, 0 8px 24px rgba(0, 0, 0, 0.1));
+        overflow: hidden;
+      }
+      
+      .output-tabs {
+        display: flex;
+        background: #ffffff;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+        flex-shrink: 0;
+      }
+      
+      .output-tab {
+        padding: 12px 24px;
+        background: transparent;
+        border: none;
+        border-bottom: 3px solid transparent;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: var(--font-weight-medium, 500);
+        color: var(--color-on-surface-secondary, #6c757d);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        border-radius: var(--border-radius-md, 12px) var(--border-radius-md, 12px) 0 0;
+        font-family: var(--font-family-body, 'Roboto Mono', monospace);
+      }
+      
+      .output-tab.active {
+        color: var(--color-primary, #0066ff);
+        border-bottom-color: var(--color-primary, #0066ff);
+        background: linear-gradient(to bottom, rgba(0, 102, 255, 0.08), transparent);
+      }
+      
+      .output-tab:hover {
+        color: var(--color-on-surface, #212529);
+        background: rgba(0, 0, 0, 0.03);
+        transform: translateY(-1px);
       }
       
       .output-content {
-        flex: 1;
-        padding: 20px;
-        overflow-y: auto;
+    flex: 1;
+        padding: 16px 20px;
+    overflow-y: auto;
         background: #ffffff;
         color: #212529;
         font-family: 'Roboto Mono', monospace;
-        font-size: 14px;
+        font-size: 13px;
         line-height: 1.6;
         white-space: pre-wrap;
+        min-height: 0;
       }
       
       .output-content pre {
@@ -195,29 +519,84 @@
         word-wrap: break-word;
       }
       
+      .output-content pre {
+        margin: 0;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+      }
+      
+      .output-content::-webkit-scrollbar {
+        width: 8px;
+      }
+      
+      .output-content::-webkit-scrollbar-track {
+        background: #f8f9fa;
+        border-radius: 10px;
+      }
+      
+      .output-content::-webkit-scrollbar-thumb {
+        background: #dee2e6;
+        border-radius: 10px;
+        transition: background 0.2s;
+      }
+      
+      .output-content::-webkit-scrollbar-thumb:hover {
+        background: #adb5bd;
+      }
+      
       .btn-run {
-        background: var(--dls-color-accent-primary, #ff6600);
-        color: white;
-        border: none;
-        padding: 12px 24px;
-        border-radius: 8px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.3s;
-        font-size: 16px;
+        background: linear-gradient(135deg, var(--color-primary, #0066ff) 0%, var(--color-accent, #00a3b8) 100%);
+        color: var(--color-on-primary, #ffffff);
+    border: none;
+        padding: 10px 24px;
+        border-radius: var(--border-radius-md, 12px);
+        font-weight: var(--font-weight-medium, 500);
+    cursor: pointer;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        font-size: 14px;
+        font-family: var(--font-family-body, 'Roboto Mono', monospace);
+        box-shadow: var(--shadow-level-2, 0 4px 16px rgba(0, 102, 255, 0.25));
       }
       
       .btn-run:hover {
-        background: var(--dls-color-accent-primary-hover, #ff8533);
+        background: linear-gradient(135deg, var(--color-accent, #00a3b8) 0%, var(--color-primary, #0066ff) 100%);
         transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(255, 102, 0, 0.3);
+        box-shadow: var(--shadow-level-3, 0 8px 24px rgba(0, 102, 255, 0.35));
       }
       
-      @media (max-width: 768px) {
+      .btn-run:active {
+        transform: translateY(0);
+        box-shadow: var(--shadow-level-1, 0 2px 8px rgba(0, 102, 255, 0.25));
+      }
+      
+      @media (max-width: 1200px) {
         .editor-layout {
           grid-template-columns: 1fr;
-          grid-template-rows: 1fr 5px 1fr;
+          grid-template-rows: 300px 5px 1fr;
           height: auto;
+          min-height: calc(100vh - 150px);
+        }
+        
+        .task-panel {
+          border-right: none;
+          border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+          margin: 12px;
+        }
+        
+        .code-output-container {
+          border-radius: 0;
+          margin: 12px;
+        }
+        
+        .editor-panel {
+          border-radius: 0;
+          min-height: 400px;
+        }
+        
+        .output-panel {
+          border-radius: 0;
+          flex: 0 0 200px;
+          max-height: 300px;
         }
         
         .resizer {
@@ -225,10 +604,225 @@
           height: 5px;
           cursor: row-resize;
         }
+        
+        .resizer-1 {
+          grid-column: 1 !important;
+          grid-row: 2;
+        }
+        
+        .vertical-resizer {
+          width: 100%;
+        }
+        
+        .code-header {
+          padding: 10px 16px;
+          flex-wrap: wrap;
+        }
+        
+        .btn-run {
+          padding: 8px 16px;
+          font-size: 13px;
+        }
+        
+        .CodeMirror {
+          font-size: 14px;
+        }
+        
+        .CodeMirror-scroll {
+          padding: 12px 12px 12px 0;
+        }
+        
+        .CodeMirror-gutters {
+          padding-right: 6px;
+        }
+        
+        .CodeMirror-linenumber {
+          padding: 0 6px 0 3px;
+          font-size: 12px;
+        }
+        
+        .CodeMirror-line {
+          padding-left: 10px;
+        }
       }
-    </style>
-  </head>
-  <body>
+      
+      @media (max-width: 768px) {
+        .editor-section {
+          height: calc(100vh - 60px);
+        }
+        
+        .editor-layout {
+          grid-template-rows: 250px 5px 1fr;
+          min-height: calc(100vh - 120px);
+        }
+        
+        .task-panel {
+          margin: 8px;
+          border-radius: 12px;
+        }
+        
+        .code-output-container {
+          margin: 8px;
+        }
+        
+        .editor-panel {
+          min-height: 350px;
+          border-radius: 12px;
+        }
+        
+        .output-panel {
+          flex: 0 0 180px;
+          max-height: 250px;
+          border-radius: 12px;
+        }
+        
+        .code-header {
+          padding: 8px 12px;
+          flex-direction: column;
+          align-items: stretch;
+          gap: 8px;
+        }
+        
+        .code-header-left {
+          width: 100%;
+        }
+        
+        .lang-selector {
+          width: 100%;
+          padding: 6px 12px;
+          font-size: 13px;
+        }
+        
+        .btn-run {
+          width: 100%;
+          padding: 10px;
+          font-size: 14px;
+        }
+        
+        .CodeMirror {
+          font-size: 13px;
+        }
+        
+        .CodeMirror-scroll {
+          padding: 10px;
+        }
+        
+        .output-tab {
+          padding: 10px 16px;
+          font-size: 13px;
+        }
+        
+        .output-content {
+          padding: 12px 16px;
+          font-size: 12px;
+        }
+        
+        .task-selector {
+          padding: 12px 16px;
+        }
+        
+        .task-description {
+          padding: 16px;
+          font-size: 14px;
+        }
+      }
+      
+      @media (max-width: 480px) {
+        .editor-section {
+          height: calc(100vh - 50px);
+        }
+        
+        .editor-layout {
+          grid-template-rows: 200px 4px 1fr;
+          min-height: calc(100vh - 100px);
+        }
+        
+        .task-panel {
+          margin: 4px;
+          border-radius: 8px;
+        }
+        
+        .code-output-container {
+          margin: 4px;
+        }
+        
+        .editor-panel {
+          min-height: 300px;
+          border-radius: 8px;
+        }
+        
+        .output-panel {
+          flex: 0 0 150px;
+          max-height: 200px;
+          border-radius: 8px;
+        }
+        
+        .code-header {
+          padding: 6px 10px;
+        }
+        
+        .CodeMirror {
+          font-size: 12px;
+        }
+        
+        .CodeMirror-scroll {
+          padding: 8px 8px 8px 0;
+        }
+        
+        .CodeMirror-gutters {
+          padding-right: 4px;
+        }
+        
+        .CodeMirror-linenumber {
+          padding: 0 4px 0 2px;
+          font-size: 11px;
+          min-width: 18px;
+        }
+        
+        .CodeMirror-line {
+          padding-left: 8px;
+        }
+        
+        .output-tab {
+          padding: 8px 12px;
+          font-size: 12px;
+        }
+        
+        .output-content {
+          padding: 10px 12px;
+          font-size: 11px;
+        }
+      }
+      
+      @media (min-width: 1400px) {
+        .editor-layout {
+          grid-template-columns: 35% 12px 65%;
+        }
+        
+        .CodeMirror {
+          font-size: 16px;
+        }
+        
+        .CodeMirror-scroll {
+          padding: 20px 20px 20px 0;
+        }
+        
+        .CodeMirror-gutters {
+          padding-right: 10px;
+        }
+        
+        .CodeMirror-linenumber {
+          padding: 0 10px 0 5px;
+          font-size: 15px;
+        }
+        
+        .CodeMirror-line {
+          padding-left: 14px;
+        }
+      }
+</style>
+</head>
+<body>
     <div class="home-container1">
       <!-- Navigation -->
       <navigation-wrapper class="navigation-wrapper">
@@ -332,47 +926,66 @@
       <!-- Editor Section -->
       <section class="editor-section">
         <div class="editor-container">
-          <h2 class="section-title" style="text-align: center; margin-bottom: 10px;">Интерактивный редактор кода</h2>
-          <p class="section-subtitle" style="text-align: center; margin-bottom: 30px;">Напишите код, запустите его и получите результат</p>
-          
           <div class="editor-layout">
-            <div class="editor-panel" id="left">
+            <!-- Task Panel (Left) -->
+            <div class="task-panel" id="task-panel">
               <div class="task-selector">
-                <label for="task-select"><strong>Выберите задачу:</strong></label>
+                <label for="task-select">Задача:</label>
                 <form method="get" id="task-form">
-                  <select id="task-select" name="task" onchange="this.form.submit()">
+                <select id="task-select" name="task" onchange="this.form.submit()">
                     {% for task_file in tasks %}
-                      <option value="{{ task_file }}" {% if task_file == selected_task %}selected{% endif %}>{{ task_file }}</option>
+                        <option value="{{ task_file }}" {% if task_file == selected_task %}selected{% endif %}>{{ task_file }}</option>
                     {% endfor %}
-                  </select>
-                </form>
+                </select>
+            </form>
               </div>
               
               {% if task_text %}
-              <div class="task-description">{{ task_text }}</div>
+              <div class="task-description">
+                {{ task_text|linebreaks }}
+              </div>
+              {% else %}
+              <div class="task-description" style="display: flex; align-items: center; justify-content: center; color: #6c757d;">
+                Выберите задачу из списка выше
+              </div>
               {% endif %}
-              
-              <div class="code-editor-wrapper">
-                <form method="post" action="{% url 'run_code' %}" id="code-form">
-                  {% csrf_token %}
-                  <input type="hidden" name="task" value="{{ selected_task }}">
-                  <textarea id="code" name="code">{{ code|default:"" }}</textarea>
-                </form>
-              </div>
-              
-              <div class="code-actions">
-                <button type="submit" form="code-form" class="btn-run">▶ Запустить код</button>
-              </div>
             </div>
 
-            <div class="resizer" id="resizer"></div>
+            <div class="resizer resizer-1" id="resizer1"></div>
 
-            <div class="editor-panel output-panel" id="right">
-              <div class="panel-header">
-                <span class="panel-title">Вывод</span>
+            <!-- Code Editor and Output Container -->
+            <div class="code-output-container" id="code-output-container">
+              <!-- Code Editor Panel -->
+              <div class="editor-panel" id="code-panel">
+                <div class="code-header">
+                  <div class="code-header-left">
+                    <select class="lang-selector" disabled>
+                      <option>Python</option>
+                    </select>
+                  </div>
+                  <button type="submit" form="code-form" class="btn-run" style="margin: 0; padding: 8px 20px; font-size: 14px;">▶ Запустить</button>
+        </div>
+
+                <div class="code-editor-wrapper">
+                  <form method="post" action="{% url 'run_code' %}" id="code-form">
+                {% csrf_token %}
+                <input type="hidden" name="task" value="{{ selected_task }}">
+                <textarea id="code" name="code">{{ code|default:"" }}</textarea>
+            </form>
+                </div>
               </div>
-              <div class="output-content" id="output">
-                <pre>{% if output %}{{ output }}{% else %}Запустите код, чтобы увидеть результат...{% endif %}</pre>
+
+              <div class="vertical-resizer" id="vertical-resizer"></div>
+
+              <!-- Output Panel -->
+              <div class="output-panel" id="output-panel">
+                <div class="output-tabs">
+                  <button class="output-tab active" onclick="switchTab('output')">Вывод</button>
+                  <button class="output-tab" onclick="switchTab('testcases')">Тест-кейсы</button>
+                </div>
+                <div class="output-content" id="output-content">
+                  <pre id="output">{% if output %}{{ output }}{% else %}Запустите код, чтобы увидеть результат...{% endif %}</pre>
+                </div>
               </div>
             </div>
           </div>
@@ -384,51 +997,21 @@
         <div class="footer-container1">
           <footer class="footer">
             <div class="footer-wrapper">
-              <div class="footer-content">
-                <div class="footer-newsletter-section">
-                  <div class="footer-newsletter-header">
-                    <div class="footer-logo-container">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" class="footer-logo-icon">
-                        <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m16 18l6-6l-6-6M8 6l-6 6l6 6"></path>
-                      </svg>
-                      <span class="footer-logo-text">CodeSphere</span>
-                    </div>
-                    <p class="footer-newsletter-description">
-                      Получайте обновления о новых возможностях платформы, советы по программированию и эксклюзивные материалы
-                    </p>
-                  </div>
-                </div>
-                <div class="footer-divider"></div>
-                <div class="footer-info-grid">
-                  <div class="footer-column footer-column-brand">
-                    <div class="footer-brand-content">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" class="footer-terminal-icon">
-                        <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19h8M4 17l6-6l-6-6"></path>
-                      </svg>
-                      <p class="footer-brand-description">
-                        Интерактивная платформа для изучения программирования с встроенной IDE, автоматической проверкой кода и изолированным выполнением в контейнерах
-                      </p>
-                    </div>
-                  </div>
-                  <div class="footer-column">
-                    <h3 class="footer-column-title">Платформа</h3>
-                    <ul class="footer-link-list">
-                      <li class="footer-link-item">
-                        <a href="{% url 'home' %}">
-                          <div class="footer-link"><span>Главная</span></div>
-                        </a>
-                      </li>
-                      <li class="footer-link-item">
-                        <a href="{% url 'index' %}">
-                          <div class="footer-link"><span>Редактор</span></div>
-                        </a>
-                      </li>
-                    </ul>
-                  </div>
-                </div>
-                <div class="footer-divider"></div>
-                <div class="footer-bottom">
-                  <p class="footer-copyright">© 2025 CodeSphere. Все права защищены</p>
+              <div class="footer-content" style="padding: 40px 20px; max-width: 1200px; margin: 0 auto;">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px;">
+                  <div style="display: flex; align-items: center; gap: 12px;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" style="color: currentColor;">
+                      <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m16 18l6-6l-6-6M8 6l-6 6l6 6"></path>
+                    </svg>
+                    <span style="font-weight: 600; font-size: 18px;">CodeSphere</span>
+    </div>
+
+                  <nav style="display: flex; gap: 30px; align-items: center; flex-wrap: wrap;">
+                    <a href="{% url 'home' %}" style="text-decoration: none; color: inherit; font-size: 14px;">Главная</a>
+                    <a href="{% url 'index' %}" style="text-decoration: none; color: inherit; font-size: 14px;">Редактор</a>
+                  </nav>
+                  
+                  <p style="margin: 0; font-size: 14px; color: rgba(0, 0, 0, 0.6);">© 2025 CodeSphere</p>
                 </div>
               </div>
             </div>
@@ -443,78 +1026,311 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/addon/hint/show-hint.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/addon/hint/anyword-hint.min.js"></script>
 
-    <script>
-      // Initialize CodeMirror
-      var editor = CodeMirror.fromTextArea(document.getElementById('code'), {
-        mode: "python",
-        lineNumbers: true,
-        indentUnit: 4,
-        theme: "eclipse",
-        viewportMargin: Infinity,
-        extraKeys: {"Ctrl-Space": "autocomplete"},
-        lineWrapping: true
-      });
+<script>
+      // Initialize CodeMirror after DOM is ready
+      document.addEventListener('DOMContentLoaded', function() {
+        const textarea = document.getElementById('code');
+        const codeEditorWrapper = document.querySelector('.code-editor-wrapper');
+        
+        if (textarea && codeEditorWrapper) {
+          console.log('Initializing CodeMirror...');
+          
+          // Create editor
+          var editor = CodeMirror.fromTextArea(textarea, {
+            mode: "python",
+            lineNumbers: true,
+            indentUnit: 4,
+            theme: "eclipse",
+            viewportMargin: Infinity,
+            extraKeys: {"Ctrl-Space": "autocomplete"},
+            lineWrapping: true,
+            autoFocus: false,
+            lineNumberFormatter: function(line) {
+              return line;
+            }
+          });
+          
+          // Function to update gutter width based on line count
+          const updateGutterWidth = function(cm) {
+            const gutter = cm.getGutterElement();
+            if (gutter) {
+              const lineCount = cm.lineCount();
+              const maxDigits = String(lineCount).length;
+              // Calculate width: ~7px per digit + padding (left 4px + right 8px) = 12px
+              const minWidth = Math.max(maxDigits * 7 + 16, 40);
+              gutter.style.minWidth = minWidth + 'px';
+              gutter.style.width = minWidth + 'px';
+            }
+          };
+          
+          // Update gutter width on various events
+          editor.on("change", function(cm) {
+            updateGutterWidth(cm);
+          });
+          
+          editor.on("viewportChange", function(cm) {
+            updateGutterWidth(cm);
+          });
+          
+          // Initial gutter width update
+          setTimeout(function() {
+            updateGutterWidth(editor);
+          }, 100);
 
-      editor.on("inputRead", function(cm, change) {
-        if (change.text[0].match(/\w/)) {
-          CodeMirror.showHint(cm, CodeMirror.hint.anyword, {completeSingle: false});
+          // Store editor globally for resize handlers
+          window.editor = editor;
+          
+          // Make sure editor is visible and clickable
+          editor.setOption('readOnly', false);
+          
+          // Force editor to be interactive
+          editor.getWrapperElement().style.pointerEvents = 'auto';
+          editor.getWrapperElement().style.cursor = 'text';
+          
+          // Make CodeMirror container fill the form
+          const cmElement = editor.getWrapperElement();
+          cmElement.style.flex = '1';
+          cmElement.style.display = 'flex';
+          cmElement.style.flexDirection = 'column';
+          cmElement.style.minHeight = '0';
+          cmElement.style.height = '100%';
+          cmElement.style.width = '100%';
+          
+          const cmScroller = cmElement.querySelector('.CodeMirror-scroll');
+          if (cmScroller) {
+            cmScroller.style.height = '100%';
+            cmScroller.style.maxHeight = '100%';
+          }
+          
+          editor.on("inputRead", function(cm, change) {
+            if (change.text[0] && change.text[0].match(/\w/)) {
+              CodeMirror.showHint(cm, CodeMirror.hint.anyword, {completeSingle: false});
+            }
+          });
+
+          // Update textarea before form submit
+          const codeForm = document.getElementById('code-form');
+          if (codeForm) {
+            codeForm.addEventListener('submit', function(e) {
+              editor.save();
+            });
+          }
+
+          // Refresh editor on window resize with debounce
+          let resizeTimeout;
+          const refreshEditor = function() {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(function() {
+              editor.refresh();
+              updateGutterWidth(editor);
+              const wrapper = editor.getWrapperElement();
+              const scroller = wrapper.querySelector('.CodeMirror-scroll');
+              if (scroller) {
+                scroller.style.height = '100%';
+                scroller.style.maxHeight = '100%';
+              }
+            }, 150);
+          };
+
+          window.addEventListener('resize', refreshEditor);
+          
+          // Use ResizeObserver for better resize detection
+          if (window.ResizeObserver) {
+            const resizeObserver = new ResizeObserver(function(entries) {
+              refreshEditor();
+            });
+            const editorWrapper = document.querySelector('.code-editor-wrapper');
+            if (editorWrapper) {
+              resizeObserver.observe(editorWrapper);
+            }
+          }
+
+          // Multiple refreshes to ensure it works
+          setTimeout(function() {
+            editor.refresh();
+            updateGutterWidth(editor);
+            const wrapper = editor.getWrapperElement();
+            const scroller = wrapper.querySelector('.CodeMirror-scroll');
+            if (scroller) {
+              scroller.style.height = '100%';
+              scroller.style.maxHeight = '100%';
+            }
+          }, 200);
+          
+          setTimeout(function() {
+            editor.refresh();
+            updateGutterWidth(editor);
+          }, 500);
+          
+          setTimeout(function() {
+            editor.refresh();
+            updateGutterWidth(editor);
+          }, 1000);
+
+          // Click handler to focus editor
+          codeEditorWrapper.addEventListener('click', function(e) {
+            if (e.target.closest('.CodeMirror')) {
+              editor.focus();
+            }
+          });
+          
+          console.log('CodeMirror initialized successfully');
+        } else {
+          console.error('Textarea or wrapper not found!', {
+            textarea: !!textarea,
+            wrapper: !!codeEditorWrapper
+          });
         }
       });
 
-      // Horizontal resizer
-      const resizer = document.getElementById('resizer');
-      const left = document.getElementById('left');
-      const right = document.getElementById('right');
-      let isResizing = false;
+      // Horizontal resizer (between task and code)
+      const resizer1 = document.getElementById('resizer1');
+      const taskPanel = document.getElementById('task-panel');
+      const layout = document.querySelector('.editor-layout');
+      let isResizingHorizontal = false;
 
-      resizer.addEventListener('mousedown', e => {
-        isResizing = true;
-        document.body.style.cursor = 'col-resize';
-      });
+      if (resizer1 && window.innerWidth > 1200) {
+        resizer1.addEventListener('mousedown', e => {
+          isResizingHorizontal = true;
+          document.body.style.cursor = 'col-resize';
+          document.body.style.userSelect = 'none';
+          e.preventDefault();
+        });
+      }
 
-      document.addEventListener('mousemove', e => {
-        if (!isResizing) return;
-        
-        const containerRect = left.parentNode.getBoundingClientRect();
-        let pointerX = e.clientX - containerRect.left;
-        const minWidth = 200;
-        const maxWidth = containerRect.width - minWidth - resizer.offsetWidth;
-        
-        if (pointerX < minWidth) pointerX = minWidth;
-        if (pointerX > maxWidth) pointerX = maxWidth;
-        
-        left.style.flex = '0 0 ' + pointerX + 'px';
-        right.style.flex = '1';
-      });
+      // Vertical resizer (between code and output)
+      const verticalResizer = document.getElementById('vertical-resizer');
+      const codePanel = document.getElementById('code-panel');
+      const outputPanel = document.getElementById('output-panel');
+      const codeOutputContainer = document.getElementById('code-output-container');
+      let isResizingVertical = false;
 
-      document.addEventListener('mouseup', e => {
-        isResizing = false;
-        document.body.style.cursor = '';
-      });
-
-      // Mobile responsive
-      if (window.innerWidth <= 768) {
-        resizer.style.cursor = 'row-resize';
-        resizer.addEventListener('mousedown', e => {
-          isResizing = true;
+      if (verticalResizer) {
+        verticalResizer.addEventListener('mousedown', e => {
+          isResizingVertical = true;
           document.body.style.cursor = 'row-resize';
+          document.body.style.userSelect = 'none';
+          e.preventDefault();
         });
         
-        document.addEventListener('mousemove', e => {
-          if (!isResizing) return;
+        // Touch support for mobile
+        verticalResizer.addEventListener('touchstart', e => {
+          isResizingVertical = true;
+          e.preventDefault();
+        });
+      }
+
+      document.addEventListener('mousemove', e => {
+        // Horizontal resize (task panel width) - only on desktop
+        if (isResizingHorizontal && window.innerWidth > 1200) {
+          const containerRect = layout.getBoundingClientRect();
+          let pointerX = e.clientX - containerRect.left;
+          const minWidth = 250;
+          const maxWidth = containerRect.width - 300;
           
-          const containerRect = left.parentNode.getBoundingClientRect();
+          if (pointerX < minWidth) pointerX = minWidth;
+          if (pointerX > maxWidth) pointerX = maxWidth;
+          
+          layout.style.gridTemplateColumns = pointerX + 'px 12px 1fr';
+        }
+        
+        // Vertical resize (code and output height)
+        if (isResizingVertical) {
+          const containerRect = codeOutputContainer.getBoundingClientRect();
           let pointerY = e.clientY - containerRect.top;
           const minHeight = 200;
-          const maxHeight = containerRect.height - minHeight - resizer.offsetHeight;
+          const maxHeight = containerRect.height - 100;
           
           if (pointerY < minHeight) pointerY = minHeight;
           if (pointerY > maxHeight) pointerY = maxHeight;
           
-          left.style.height = pointerY + 'px';
-          right.style.flex = '1';
-        });
+          const outputHeight = containerRect.height - pointerY - 12;
+          codePanel.style.flex = '0 0 ' + pointerY + 'px';
+          outputPanel.style.flex = '0 0 ' + outputHeight + 'px';
+          
+          // Refresh CodeMirror after resize
+          if (window.editor) {
+            setTimeout(() => window.editor.refresh(), 50);
+          }
+        }
+      });
+
+      document.addEventListener('touchmove', e => {
+        if (isResizingVertical && e.touches.length > 0) {
+          const containerRect = codeOutputContainer.getBoundingClientRect();
+          let pointerY = e.touches[0].clientY - containerRect.top;
+          const minHeight = 200;
+          const maxHeight = containerRect.height - 100;
+          
+          if (pointerY < minHeight) pointerY = minHeight;
+          if (pointerY > maxHeight) pointerY = maxHeight;
+          
+          const outputHeight = containerRect.height - pointerY - 12;
+          codePanel.style.flex = '0 0 ' + pointerY + 'px';
+          outputPanel.style.flex = '0 0 ' + outputHeight + 'px';
+          
+          e.preventDefault();
+        }
+      });
+
+      document.addEventListener('mouseup', e => {
+        if (isResizingHorizontal || isResizingVertical) {
+          isResizingHorizontal = false;
+          isResizingVertical = false;
+          document.body.style.cursor = '';
+          document.body.style.userSelect = '';
+          
+          // Refresh CodeMirror after resize
+          if (window.editor) {
+            setTimeout(() => window.editor.refresh(), 100);
+          }
+        }
+      });
+
+      document.addEventListener('touchend', e => {
+        if (isResizingVertical) {
+          isResizingVertical = false;
+          if (window.editor) {
+            setTimeout(() => window.editor.refresh(), 100);
+          }
+        }
+      });
+      
+      // Handle window resize to reset layout on mobile
+      let resizeTimeout;
+      window.addEventListener('resize', function() {
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(function() {
+          if (window.innerWidth <= 1200) {
+            // Reset to default layout on mobile
+            if (layout) {
+              layout.style.gridTemplateColumns = '';
+            }
+            if (codePanel) {
+              codePanel.style.flex = '';
+            }
+            if (outputPanel) {
+              outputPanel.style.flex = '';
+            }
+          }
+          // Refresh editor
+          if (window.editor) {
+            window.editor.refresh();
+          }
+        }, 200);
+      });
+
+      // Tab switching
+      function switchTab(tabName) {
+        const tabs = document.querySelectorAll('.output-tab');
+        tabs.forEach(tab => tab.classList.remove('active'));
+        
+        if (tabName === 'output') {
+          tabs[0].classList.add('active');
+        } else if (tabName === 'testcases') {
+          tabs[1].classList.add('active');
+        }
       }
-    </script>
-  </body>
+</script>
+</body>
 </html>
