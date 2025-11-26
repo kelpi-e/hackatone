@@ -71,7 +71,9 @@ def index(request):
             "code": "",
             "output": "",
             "input_data": "",
-            "tests_passed": None
+            "tests_passed": None,
+            "test_results": [],
+            "test_mode": False
         }
     )
 
@@ -91,6 +93,8 @@ def run_code(request):
 
     output = ""
     tests_passed = None
+    test_results = []
+    test_mode = mode == "run_tests"
 
     # ------------------------------
     # Статический анализ через docker
@@ -119,17 +123,19 @@ def run_code(request):
         warning_msg = "Подозрительные символы или возможный код ИИ/копипаста обнаружены:\n"
         for pos, desc in suspicious:
             warning_msg += f"позиция {pos}: {desc}\n"
-        # Добавляем в лог и выводим на экран
+        # Добавляем в лог
         with open(ANALYSIS_LOG, "a", encoding="utf-8") as log:
             log.write("\n=== Предупреждение о подозрительном коде ===\n")
             log.write(warning_msg)
             log.write("=========================\n")
-        output = warning_msg + "\n" + output
+        # Добавляем предупреждение только в обычный вывод, не в тесты
+        if not test_mode:
+            output = warning_msg + "\n" + output
 
     # ------------------------------
     # Прогон тестов
     # ------------------------------
-    if mode == "run_tests":
+    if test_mode:
         json_file = selected.replace(".txt", ".json")
         json_path = os.path.join(TASKS_DIR, json_file)
 
@@ -141,16 +147,25 @@ def run_code(request):
                 tests = []
                 output += f"Ошибка чтения тестов: {e}\n"
 
-            logs = []
             passed = 0
 
             for i, test in enumerate(tests, start=1):
                 test_input = " ".join(str(x) for x in test.get("input", []))
                 expected = str(test.get("expected", "")).strip()
 
+                test_result = {
+                    "number": i,
+                    "input": test_input,
+                    "expected": expected,
+                    "actual": "",
+                    "error": "",
+                    "passed": False,
+                    "timeout": False
+                }
+
                 try:
                     res = subprocess.run(
-                        ["python", temp],
+                        ["python3", temp],
                         input=test_input,
                         capture_output=True,
                         text=True,
@@ -161,34 +176,41 @@ def run_code(request):
                     err = res.stderr.strip()
                     ok = (actual == expected) and not err
 
+                    test_result["actual"] = actual
+                    test_result["error"] = err
+                    test_result["passed"] = ok
+
                     if ok:
                         passed += 1
-                        logs.append(f"Тест {i}: ✓")
-                    else:
-                        if err:
-                            logs.append(f"Тест {i}: ✗ (ошибка)\n{err}")
-                        else:
-                            logs.append(f"Тест {i}: ✗ (неверный результат)")
 
                 except subprocess.TimeoutExpired:
-                    logs.append(f"Тест {i}: ✗ (таймаут)")
+                    test_result["timeout"] = True
 
-            output += "\n" + "\n".join(logs)
+                test_results.append(test_result)
+
             tests_passed = f"{passed} / {len(tests)}"
 
             # Добавляем результаты тестов в лог
             try:
                 with open(ANALYSIS_LOG, "a", encoding="utf-8") as log:
                     log.write("\n=== Результаты тестов ===\n")
-                    for line in logs:
-                        log.write(line + "\n")
+                    for result in test_results:
+                        if result["passed"]:
+                            log.write(f"Тест {result['number']}: ✓\n")
+                        elif result["timeout"]:
+                            log.write(f"Тест {result['number']}: ✗ (таймаут)\n")
+                        elif result["error"]:
+                            log.write(f"Тест {result['number']}: ✗ (ошибка)\n{result['error']}\n")
+                        else:
+                            log.write(f"Тест {result['number']}: ✗ (неверный результат)\n")
                     log.write(f"Итог: {passed} / {len(tests)}\n")
                     log.write("=========================\n")
             except:
                 pass
 
         else:
-            output += f"\nФайл тестов {json_file} не найден."
+            test_results = []
+            tests_passed = None
 
     # ------------------------------
     # Обычный запуск с пользовательским вводом
@@ -196,7 +218,7 @@ def run_code(request):
     else:
         try:
             res = subprocess.run(
-                ["python", temp],
+                ["python3", temp],
                 input=user_input,
                 capture_output=True,
                 text=True,
@@ -218,6 +240,8 @@ def run_code(request):
             "code": code,
             "output": output,
             "input_data": user_input,
-            "tests_passed": tests_passed
+            "tests_passed": tests_passed,
+            "test_results": test_results,
+            "test_mode": test_mode
         }
     )

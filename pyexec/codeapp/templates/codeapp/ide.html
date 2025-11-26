@@ -150,6 +150,7 @@
       .task-description {
         flex: 1;
         padding: 24px;
+        padding-bottom: 32px;
         background: transparent;
         overflow-y: auto;
         color: #212529;
@@ -247,7 +248,7 @@
       }
 
       .CodeMirror-scroll {
-        padding: 16px 16px 16px 0;
+        padding: 16px 16px 24px 0;
         min-height: 100%;
         max-height: 100%;
         overflow-x: auto;
@@ -475,6 +476,7 @@
       .output-content {
         flex: 1;
         padding: 16px 20px;
+        padding-bottom: 24px;
         overflow-y: auto;
         background: #ffffff;
         color: #212529;
@@ -483,6 +485,16 @@
         line-height: 1.6;
         white-space: pre-wrap;
         min-height: 0;
+        display: none;
+        flex-direction: column;
+      }
+      
+      .output-content pre {
+        padding-bottom: 8px;
+      }
+      
+      .output-content.active {
+        display: flex;
       }
 
       .output-content pre {
@@ -507,6 +519,207 @@
       }
 
       .output-content::-webkit-scrollbar-thumb:hover {
+        background: #adb5bd;
+      }
+      
+      .input-section {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        gap: 12px;
+      }
+      
+      .input-label {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--color-on-surface, #212529);
+        margin-bottom: 4px;
+      }
+      
+      .user-input-field {
+        flex: 1;
+        width: 100%;
+        padding: 12px;
+        padding-bottom: 16px;
+        border: 1px solid rgba(0, 0, 0, 0.1);
+        border-radius: var(--border-radius-md, 12px);
+        background: var(--color-surface, #ffffff);
+        color: var(--color-on-surface, #212529);
+        font-family: 'Roboto Mono', monospace;
+        font-size: 13px;
+        line-height: 1.6;
+        resize: none;
+        min-height: 150px;
+        box-sizing: border-box;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      
+      .user-input-field:focus {
+        outline: none;
+        border-color: var(--color-primary, #0066ff);
+        box-shadow: 0 0 0 3px rgba(0, 102, 255, 0.1);
+      }
+      
+      .user-input-field::placeholder {
+        color: #adb5bd;
+      }
+      
+      .input-hint {
+        font-size: 12px;
+        color: var(--color-on-surface-secondary, #6c757d);
+        margin: 0;
+        font-style: italic;
+      }
+      
+      .testcases-info {
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        height: 100%;
+        overflow: hidden;
+      }
+      
+      .test-result {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 14px;
+        background: var(--color-surface-elevated, #f8f9fa);
+        border-radius: var(--border-radius-md, 12px);
+        border: 1px solid rgba(0, 0, 0, 0.05);
+        flex-shrink: 0;
+      }
+      
+      .test-result-label {
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--color-on-surface, #212529);
+      }
+      
+      .test-result-value {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--color-primary, #0066ff);
+        font-family: 'Roboto Mono', monospace;
+      }
+      
+      .test-results-list {
+        margin-top: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        flex: 1;
+        overflow-y: auto;
+        min-height: 0;
+        padding-bottom: 16px;
+      }
+      
+      .test-item {
+        padding: 12px 14px;
+        border-radius: var(--border-radius-md, 12px);
+        border: 1px solid rgba(0, 0, 0, 0.1);
+        background: var(--color-surface, #ffffff);
+      }
+      
+      .test-item.test-passed {
+        border-left: 4px solid #28a745;
+        background: rgba(40, 167, 69, 0.05);
+      }
+      
+      .test-item.test-failed {
+        border-left: 4px solid #dc3545;
+        background: rgba(220, 53, 69, 0.05);
+      }
+      
+      .test-item.test-timeout {
+        border-left: 4px solid #ffc107;
+        background: rgba(255, 193, 7, 0.05);
+      }
+      
+      .test-item-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+        padding-bottom: 6px;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+      }
+      
+      .test-item-number {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--color-on-surface, #212529);
+      }
+      
+      .test-item-status {
+        font-size: 13px;
+        font-weight: 500;
+        font-family: 'Roboto Mono', monospace;
+      }
+      
+      .test-item.test-passed .test-item-status {
+        color: #28a745;
+      }
+      
+      .test-item.test-failed .test-item-status {
+        color: #dc3545;
+      }
+      
+      .test-item.test-timeout .test-item-status {
+        color: #ffc107;
+      }
+      
+      .test-item-details {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      
+      .test-detail-row {
+        display: flex;
+        gap: 12px;
+        font-size: 13px;
+        line-height: 1.6;
+      }
+      
+      .test-detail-label {
+        font-weight: 500;
+        color: var(--color-on-surface-secondary, #6c757d);
+        min-width: 100px;
+        flex-shrink: 0;
+      }
+      
+      .test-detail-value {
+        color: var(--color-on-surface, #212529);
+        font-family: 'Roboto Mono', monospace;
+        word-break: break-word;
+        flex: 1;
+      }
+      
+      .test-detail-value.test-error {
+        color: #dc3545;
+        background: rgba(220, 53, 69, 0.1);
+        padding: 4px 8px;
+        border-radius: 4px;
+      }
+      
+      .test-results-list::-webkit-scrollbar {
+        width: 8px;
+      }
+      
+      .test-results-list::-webkit-scrollbar-track {
+        background: #f8f9fa;
+        border-radius: 10px;
+      }
+      
+      .test-results-list::-webkit-scrollbar-thumb {
+        background: #dee2e6;
+        border-radius: 10px;
+        transition: background 0.2s;
+      }
+      
+      .test-results-list::-webkit-scrollbar-thumb:hover {
         background: #adb5bd;
       }
 
@@ -638,7 +851,7 @@
         }
 
         .CodeMirror-scroll {
-          padding: 12px 12px 12px 0;
+          padding: 12px 12px 20px 0;
         }
 
         .CodeMirror-gutters {
@@ -697,7 +910,7 @@
         }
 
         .CodeMirror-scroll {
-          padding: 10px;
+          padding: 10px 10px 16px 0;
         }
 
         .output-tab {
@@ -707,7 +920,22 @@
 
         .output-content {
           padding: 12px 16px;
+          padding-bottom: 20px;
           font-size: 12px;
+        }
+        
+        .user-input-field {
+          font-size: 12px;
+          padding: 10px;
+          min-height: 120px;
+        }
+        
+        .input-label {
+          font-size: 13px;
+        }
+        
+        .input-hint {
+          font-size: 11px;
         }
 
         .task-selector {
@@ -716,7 +944,27 @@
 
         .task-description {
           padding: 16px;
+          padding-bottom: 24px;
           font-size: 14px;
+        }
+        
+        .test-item {
+          padding: 12px;
+        }
+        
+        .test-item-header {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 8px;
+        }
+        
+        .test-detail-row {
+          flex-direction: column;
+          gap: 4px;
+        }
+        
+        .test-detail-label {
+          min-width: auto;
         }
       }
 
@@ -783,6 +1031,51 @@
 
         .output-content {
           padding: 10px 12px;
+          padding-bottom: 16px;
+          font-size: 11px;
+        }
+        
+        .user-input-field {
+          font-size: 11px;
+          padding: 8px;
+          min-height: 100px;
+        }
+        
+        .input-label {
+          font-size: 12px;
+        }
+        
+        .input-hint {
+          font-size: 10px;
+        }
+        
+        .output-tab {
+          padding: 8px 12px;
+          font-size: 12px;
+        }
+        
+        .test-item {
+          padding: 10px;
+        }
+        
+        .test-item-header {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 6px;
+        }
+        
+        .test-detail-row {
+          flex-direction: column;
+          gap: 4px;
+          font-size: 12px;
+        }
+        
+        .test-detail-label {
+          min-width: auto;
+          font-size: 12px;
+        }
+        
+        .test-detail-value {
           font-size: 11px;
         }
       }
@@ -964,6 +1257,7 @@
                                 {% csrf_token %}
                                 <input type="hidden" name="task" value="{{ selected_task }}">
                                 <textarea id="code" name="code">{{ code|default:"" }}</textarea>
+                                <textarea id="input_data" name="input_data" style="display: none;">{{ input_data|default:"" }}</textarea>
                             </form>
                         </div>
                     </div>
@@ -971,11 +1265,74 @@
                     <!-- Output Panel -->
                     <div class="output-panel" id="output-panel">
                         <div class="output-tabs">
-                            <button class="output-tab active" onclick="switchTab('output')">Вывод</button>
-                            <button class="output-tab" onclick="switchTab('testcases')">Тест-кейсы</button>
+                            <button class="output-tab {% if not test_mode %}active{% endif %}" onclick="switchTab('output')">Вывод</button>
+                            <button class="output-tab" onclick="switchTab('input')">Ввод</button>
+                            <button class="output-tab {% if test_mode %}active{% endif %}" onclick="switchTab('testcases')">Тест-кейсы</button>
                         </div>
-                        <div class="output-content" id="output-content">
+                        <div class="output-content {% if not test_mode %}active{% endif %}" id="output-content" {% if test_mode %}style="display: none;"{% endif %}>
                             <pre id="output">{% if output %}{{ output }}{% else %}Запустите код, чтобы увидеть результат...{% endif %}</pre>
+                        </div>
+                        <div class="output-content" id="input-content" style="display: none;">
+                            <div class="input-section">
+                                <label for="user-input" class="input-label">Входные данные:</label>
+                                <textarea id="user-input" name="input_data" form="code-form" class="user-input-field" placeholder="Введите данные для программы (каждое значение на новой строке или через пробел)">{{ input_data|default:"" }}</textarea>
+                                <p class="input-hint">Данные будут переданы в программу через stdin</p>
+                            </div>
+                        </div>
+                        <div class="output-content {% if test_mode %}active{% endif %}" id="testcases-content" {% if not test_mode %}style="display: none;"{% endif %}>
+                            <div class="testcases-info">
+                                {% if tests_passed %}
+                                    <div class="test-result">
+                                        <span class="test-result-label">Пройдено тестов:</span>
+                                        <span class="test-result-value">{{ tests_passed }}</span>
+                                    </div>
+                                {% elif not test_results %}
+                                    <div class="test-result">
+                                        <p style="margin: 0; color: var(--color-on-surface-secondary, #6c757d);">Нажмите "Проверить тесты" для запуска тестов</p>
+                                    </div>
+                                {% endif %}
+                                
+                                {% if test_results %}
+                                    <div class="test-results-list">
+                                        {% for result in test_results %}
+                                            <div class="test-item {% if result.passed %}test-passed{% elif result.timeout %}test-timeout{% else %}test-failed{% endif %}">
+                                                <div class="test-item-header">
+                                                    <span class="test-item-number">Тест {{ result.number }}</span>
+                                                    <span class="test-item-status">
+                                                        {% if result.passed %}
+                                                            ✓ Пройден
+                                                        {% elif result.timeout %}
+                                                            ✗ Таймаут
+                                                        {% else %}
+                                                            ✗ Не пройден
+                                                        {% endif %}
+                                                    </span>
+                                                </div>
+                                                <div class="test-item-details">
+                                                    <div class="test-detail-row">
+                                                        <span class="test-detail-label">Вход:</span>
+                                                        <span class="test-detail-value">{{ result.input|default:"(нет)" }}</span>
+                                                    </div>
+                                                    <div class="test-detail-row">
+                                                        <span class="test-detail-label">Ожидалось:</span>
+                                                        <span class="test-detail-value">{{ result.expected|default:"(нет)" }}</span>
+                                                    </div>
+                                                    <div class="test-detail-row">
+                                                        <span class="test-detail-label">Получено:</span>
+                                                        <span class="test-detail-value">{{ result.actual|default:"(нет)" }}</span>
+                                                    </div>
+                                                    {% if result.error %}
+                                                        <div class="test-detail-row">
+                                                            <span class="test-detail-label">Ошибка:</span>
+                                                            <span class="test-detail-value test-error">{{ result.error }}</span>
+                                                        </div>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1311,14 +1668,74 @@
       // Tab switching
       function switchTab(tabName) {
         const tabs = document.querySelectorAll('.output-tab');
+        const contents = document.querySelectorAll('.output-content');
+        
+        // Remove active class from all tabs and contents
         tabs.forEach(tab => tab.classList.remove('active'));
-
+        contents.forEach(content => {
+          content.classList.remove('active');
+          content.style.display = 'none';
+        });
+        
+        // Activate selected tab and content
         if (tabName === 'output') {
           tabs[0].classList.add('active');
-        } else if (tabName === 'testcases') {
+          const outputContent = document.getElementById('output-content');
+          if (outputContent) {
+            outputContent.classList.add('active');
+            outputContent.style.display = 'flex';
+          }
+        } else if (tabName === 'input') {
           tabs[1].classList.add('active');
+          const inputContent = document.getElementById('input-content');
+          if (inputContent) {
+            inputContent.classList.add('active');
+            inputContent.style.display = 'flex';
+          }
+        } else if (tabName === 'testcases') {
+          tabs[2].classList.add('active');
+          const testcasesContent = document.getElementById('testcases-content');
+          if (testcasesContent) {
+            testcasesContent.classList.add('active');
+            testcasesContent.style.display = 'flex';
+          }
         }
       }
+      
+      // Sync textarea with hidden input and form submission
+      document.addEventListener('DOMContentLoaded', function() {
+        const userInput = document.getElementById('user-input');
+        const hiddenInput = document.getElementById('input_data');
+        const codeForm = document.getElementById('code-form');
+        
+        if (userInput && hiddenInput) {
+          // Sync on input
+          userInput.addEventListener('input', function() {
+            hiddenInput.value = userInput.value;
+          });
+          
+          // Initialize value
+          if (userInput.value) {
+            hiddenInput.value = userInput.value;
+          }
+        }
+        
+        // Update hidden input before form submission
+        if (codeForm) {
+          codeForm.addEventListener('submit', function(e) {
+            if (userInput && hiddenInput) {
+              hiddenInput.value = userInput.value;
+            }
+          });
+        }
+        
+        // Auto-switch to testcases tab if test mode
+        {% if test_mode and test_results %}
+          setTimeout(function() {
+            switchTab('testcases');
+          }, 100);
+        {% endif %}
+      });
     </script>
 </body>
 </html>
