@@ -38,13 +38,13 @@ CodeSphere автоматизирует процесс технического 
 
 ## 🛠 Технологии
 
-| Компонент | Технология |
-|-----------|------------|
-| Backend | Django 4.x |
+| Компонент | Технология          |
+|-----------|---------------------|
+| Backend | Django 4.x          |
 | Frontend | HTML/CSS/JS, CodeMirror |
-| AI/LLM | OpenAI API (Qwen) |
-| Embeddings | BGE-M3 |
-| База данных | SQLite |
+| AI/LLM |qwen3-coder, qwen3   |
+| Embeddings | BGE-M3              |
+| База данных | SQLite              |
 
 ---
 
@@ -185,7 +185,10 @@ brew install cppcheck gcc
 
 ## 👥 Команда
 
-Разработано на хакатоне 2025
+- [@mikoshidoomsday](https://t.me/mikoshidoomsday)
+- [@decagonic](https://t.me/decagonic)
+- [@RO1AN1](https://t.me/RO1AN1)
+- [@SoCuteBoy](https://t.me/SoCuteBoy)
 
 ---
 
