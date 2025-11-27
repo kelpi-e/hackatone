@@ -4,6 +4,7 @@ import subprocess
 import unicodedata
 import shutil
 import sys
+from typing import List, Dict, Any
 from django.shortcuts import render, redirect
 from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
@@ -130,6 +131,63 @@ SUSPICIOUS_CHARS = {
     "\u2013": "EN DASH", "\u2014": "EM DASH", "\u2018": "LEFT SINGLE QUOTE",
     "\u2019": "RIGHT SINGLE QUOTE", "\u201C": "LEFT DOUBLE QUOTE", "\u201D": "RIGHT DOUBLE QUOTE",
 }
+
+
+def summarize_theory_history(chat_history: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Возвращает статистику по теории на основе chat_history."""
+    questions = [item for item in chat_history if item.get("type") == "theory_qa"]
+    total = len(questions)
+    correct = sum(1 for item in questions if item.get("verdict") == "correct")
+    partially = sum(1 for item in questions if item.get("verdict") == "partially_correct")
+    incorrect = sum(1 for item in questions if item.get("verdict") == "incorrect")
+    after_hint_correct = sum(
+        1 for item in questions if item.get("verdict") == "correct" and item.get("after_hint")
+    )
+    return {
+        "questions_total": total,
+        "correct": correct,
+        "partially": partially,
+        "incorrect": incorrect,
+        "after_hint_correct": after_hint_correct,
+        "history": questions[-5:]
+    }
+
+
+def summarize_practice_history(chat_history: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Возвращает статистику по практике."""
+    practice_entries = [item for item in chat_history if item.get("type") == "practice_task"]
+    tasks: Dict[int, Dict[str, Any]] = {}
+    for entry in practice_entries:
+        task_idx = entry.get("task_idx")
+        if task_idx is None:
+            continue
+        if task_idx not in tasks:
+            tasks[task_idx] = {
+                "task_index": entry.get("task_index"),
+                "attempts": 0,
+                "final_verdict": entry.get("verdict"),
+                "history": []
+            }
+        tasks[task_idx]["attempts"] += 1
+        tasks[task_idx]["final_verdict"] = entry.get("verdict")
+        tasks[task_idx]["history"].append({
+            "attempt": entry.get("attempt"),
+            "code_quality": entry.get("code_quality"),
+            "solution_completeness": entry.get("solution_completeness"),
+            "verdict": entry.get("verdict"),
+            "message": entry.get("message"),
+            "hint": entry.get("hint")
+        })
+    total_tasks = len(tasks)
+    completed = sum(1 for task in tasks.values()
+                    if task["final_verdict"] in ("mastered", "partially_mastered", "not_mastered"))
+    mastered = sum(1 for task in tasks.values() if task["final_verdict"] == "mastered")
+    return {
+        "tasks_total": total_tasks,
+        "completed": completed,
+        "mastered": mastered,
+        "tasks": list(tasks.values())
+    }
 
 # =============================================================================
 # Функции для работы с баном
@@ -802,6 +860,43 @@ def get_ranked_tasks_api(request):
 
 
 @login_required
+def hr_dashboard(request):
+    """Панель HR с результатами интервью."""
+    if not request.user.is_hr():
+        messages.error(request, 'Панель доступна только HR.')
+        return redirect('home')
+
+    sessions = InterviewSession.objects.select_related('user').all()
+    candidates = []
+
+    for session in sessions:
+        theory_stats = summarize_theory_history(session.chat_history or [])
+        practice_stats = summarize_practice_history(session.chat_history or [])
+        suspicious_list = session.suspicious_activities or []
+
+        candidates.append({
+            "user": session.user,
+            "hard_desc": session.hard_desc,
+            "stage": session.stage,
+            "theory_completed": session.theory_completed,
+            "theory_stats": theory_stats,
+            "practice_stats": practice_stats,
+            "suspicious_count": len(suspicious_list),
+            "suspicious_list": suspicious_list[-5:],
+            "tab_switches": session.tab_switches,
+            "copy_paste_count": session.copy_paste_count,
+            "updated_at": session.updated_at,
+        })
+
+    context = {
+        "candidates": candidates,
+        "show_editor_link": False,
+        "show_interview_link": False,
+    }
+    return render(request, "codeapp/hr_dashboard.html", context)
+
+
+@login_required
 def index(request):
     # Для кандидатов проверяем, прошли ли они теоретическую часть
     if request.user.is_candidate():
@@ -937,9 +1032,6 @@ def run_code(request):
             if docker_result.get("compile_error"):
                 output += f"Ошибка компиляции:\n{docker_result['compile_error']}\n"
         else:
-            # Docker не сработал, fallback на локальный запуск
-            output += f"Docker недоступен: {docker_result.get('error', 'неизвестная ошибка')}\n"
-            output += "Используется локальный запуск...\n\n"
             USE_DOCKER_FALLBACK = False  # Переключаемся на локальный
     else:
         USE_DOCKER_FALLBACK = False

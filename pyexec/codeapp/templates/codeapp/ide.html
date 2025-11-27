@@ -1419,6 +1419,10 @@
                                 <div class="navigation-link"><span>Редактор</span></div>
                             </a>
                             {% endif %}
+                        {% elif user.is_authenticated and user.is_hr %}
+                            <a href="{% url 'hr_dashboard' %}">
+                                <div class="navigation-link"><span>Панель HR</span></div>
+                            </a>
                         {% else %}
                             <a href="{% url 'runcode' %}">
                                 <div class="navigation-link"><span>Редактор</span></div>
@@ -2469,10 +2473,12 @@
       document.addEventListener('visibilitychange', () => {
         if (document.hidden) {
           reportSuspiciousActivity('tab_switch_code', 'Переключение вкладки во время решения задачи');
+          showAntiCheatToast('Обнаружено переключение на другую вкладку. Это действие записано в отчёт.');
         }
       });
       window.addEventListener('blur', () => {
         reportSuspiciousActivity('window_blur_code', 'Окно потеряло фокус во время решения задачи');
+        showAntiCheatToast('Окно редактора потеряло фокус. Пожалуйста, не отвлекайтесь от задания.');
       });
 
       // Clipboard monitoring in CodeMirror

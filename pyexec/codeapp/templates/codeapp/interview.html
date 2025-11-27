@@ -546,22 +546,26 @@
                             <a href="{% url 'home' %}">
                                 <div class="navigation-link"><span>Главная</span></div>
                             </a>
-                            {% if user.is_authenticated and user.is_candidate %}
-                                {% if show_interview_link %}
-                                <a href="{% url 'interview' %}">
-                                    <div class="navigation-link"><span>Интервью</span></div>
-                                </a>
-                                {% endif %}
-                                {% if show_editor_link %}
-                                <a href="{% url 'runcode' %}">
-                                    <div class="navigation-link"><span>Редактор</span></div>
-                                </a>
-                                {% endif %}
-                            {% else %}
-                                <a href="{% url 'runcode' %}">
-                                    <div class="navigation-link"><span>Редактор</span></div>
-                                </a>
+                        {% if user.is_authenticated and user.is_candidate %}
+                            {% if show_interview_link %}
+                            <a href="{% url 'interview' %}">
+                                <div class="navigation-link"><span>Интервью</span></div>
+                            </a>
                             {% endif %}
+                            {% if show_editor_link %}
+                            <a href="{% url 'runcode' %}">
+                                <div class="navigation-link"><span>Редактор</span></div>
+                            </a>
+                            {% endif %}
+                        {% elif user.is_authenticated and user.is_hr %}
+                            <a href="{% url 'hr_dashboard' %}">
+                                <div class="navigation-link"><span>Панель HR</span></div>
+                            </a>
+                        {% else %}
+                            <a href="{% url 'runcode' %}">
+                                <div class="navigation-link"><span>Редактор</span></div>
+                            </a>
+                        {% endif %}
                         </div>
                         <a href="{% url 'home' %}">
                             <div class="navigation-logo">

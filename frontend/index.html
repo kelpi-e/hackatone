@@ -967,6 +967,10 @@
                                         <div class="navigation-link"><span>Редактор</span></div>
                                     </a>
                                     {% endif %}
+                                {% elif user.is_authenticated and user.is_hr %}
+                                    <a href="{% url 'hr_dashboard' %}">
+                                        <div class="navigation-link"><span>Панель HR</span></div>
+                                    </a>
                                 {% else %}
                                     <a href="{% url 'login' %}">
                                         <div class="navigation-link"><span>Редактор</span></div>
@@ -1044,6 +1048,12 @@
                                     </div>
                                 </a>
                                 {% endif %}
+                            {% elif user.is_authenticated and user.is_hr %}
+                                <a href="{% url 'hr_dashboard' %}">
+                                    <div class="navigation-mobile-link">
+                                        <span>Панель HR</span>
+                                    </div>
+                                </a>
                             {% else %}
                                 <a href="{% url 'login' %}">
                                     <div class="navigation-mobile-link">
