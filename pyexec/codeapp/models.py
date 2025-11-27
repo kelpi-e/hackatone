@@ -302,6 +302,13 @@ class InterviewSession(models.Model):
         help_text="Текущий наводящий вопрос, если есть"
     )
     
+    candidate_summary = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name="Резюме кандидата",
+        help_text="Сгенерированное резюме о навыках кандидата для ранжирования задач"
+    )
+    
     theory_completed = models.BooleanField(
         default=False,
         verbose_name="Теория завершена",
@@ -356,4 +363,5 @@ class InterviewSession(models.Model):
         self.termination_reason = getattr(interactor, 'termination_reason', None)
         self.awaiting_hint_answer = interactor.awaiting_hint_answer
         self.current_hint = interactor.current_hint
+        self.candidate_summary = getattr(interactor, 'candidate_summary', None)
         self.save()

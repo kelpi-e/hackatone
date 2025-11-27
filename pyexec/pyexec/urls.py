@@ -12,6 +12,7 @@ urlpatterns = [
     path('interview/', views.interview, name='interview'),  # Интервью
     path('interview/api/', views.interview_api, name='interview_api'),  # API для интервью
     path('code/chat/', views.code_chat_api, name='code_chat_api'),  # API для чата во время кодинга
+    path('tasks/ranked/', views.get_ranked_tasks_api, name='get_ranked_tasks'),  # API для ранжированных задач
     path('register/', views.register, name='register'),  # Регистрация
     path('login/', views.user_login, name='login'),      # Вход
     path('logout/', views.user_logout, name='logout'),   # Выход

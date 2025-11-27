@@ -353,6 +353,13 @@ def interview_api(request):
             if question is None:
                 # Интервью завершено
                 if interactor.stage == 'finished':
+                    # Генерируем резюме кандидата для ранжирования задач
+                    try:
+                        candidate_summary = interactor.build_candidate_summary()
+                        interview_session.candidate_summary = candidate_summary
+                    except Exception as e:
+                        print(f"Ошибка генерации резюме: {e}")
+                    
                     interview_session.theory_completed = True
                     interview_session.save()
                     return JsonResponse({
@@ -605,6 +612,59 @@ def code_chat_api(request):
             }, status=500)
     
     return JsonResponse({'error': f'Неизвестное действие: {action}'}, status=400)
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def get_ranked_tasks_api(request):
+    """
+    API endpoint для получения задач, ранжированных по релевантности для кандидата.
+    GET: возвращает все задачи в порядке ранжирования
+    POST: принимает candidate_summary для персонализированного ранжирования
+    """
+    if not request.user.is_candidate():
+        return JsonResponse({'error': 'Доступно только для кандидатов'}, status=403)
+    
+    try:
+        from .task_manager import get_ranked_tasks, get_all_tasks
+    except ImportError as e:
+        return JsonResponse({'error': f'Ошибка импорта task_manager: {e}'}, status=500)
+    
+    # Получаем сессию интервью для профиля кандидата
+    try:
+        interview_session = InterviewSession.objects.get(user=request.user)
+    except InterviewSession.DoesNotExist:
+        return JsonResponse({'error': 'Сессия интервью не найдена'}, status=404)
+    
+    top_k = int(request.GET.get('top_k', request.POST.get('top_k', 10)))
+    
+    if request.method == 'POST':
+        candidate_summary = request.POST.get('candidate_summary', '')
+    else:
+        # Используем сохранённое резюме кандидата или hard_desc
+        candidate_summary = getattr(interview_session, 'candidate_summary', '') or interview_session.hard_desc or ''
+    
+    if not candidate_summary:
+        # Если нет профиля, возвращаем все задачи без ранжирования
+        tasks = get_all_tasks()
+        return JsonResponse({
+            'success': True,
+            'ranked': False,
+            'tasks': tasks
+        })
+    
+    try:
+        ranked_tasks = get_ranked_tasks(candidate_summary, top_k=top_k)
+        return JsonResponse({
+            'success': True,
+            'ranked': True,
+            'tasks': ranked_tasks
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': f'Ошибка ранжирования: {str(e)}'
+        }, status=500)
 
 
 @login_required
