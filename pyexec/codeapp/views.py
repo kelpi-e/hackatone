@@ -29,6 +29,100 @@ ANALYSIS_LOG = os.path.join(settings.BASE_DIR, "code_analysis.log")
 TEMP_DIR = os.path.join(settings.BASE_DIR, "temp")
 os.makedirs(TEMP_DIR, exist_ok=True)
 
+# Docker настройки
+DOCKER_IMAGE = "codesphere-analyzer"
+USE_DOCKER = True  # Включить/выключить Docker
+
+
+def check_docker_image():
+    """Проверяет, существует ли Docker-образ."""
+    try:
+        result = subprocess.run(
+            ["docker", "images", "-q", DOCKER_IMAGE],
+            capture_output=True, text=True, timeout=10
+        )
+        return bool(result.stdout.strip())
+    except:
+        return False
+
+
+def build_docker_image():
+    """Собирает Docker-образ, если его нет."""
+    dockerfile_dir = os.path.join(settings.BASE_DIR, "codeAnalysis")
+    try:
+        subprocess.run(
+            ["docker", "build", "-t", DOCKER_IMAGE, dockerfile_dir],
+            capture_output=True, text=True, timeout=300
+        )
+        return True
+    except:
+        return False
+
+
+def run_in_docker(mode, code_path, language, tests_json="[]", input_data=""):
+    """
+    Запускает код в Docker-контейнере.
+    
+    Args:
+        mode: "analyze", "run", "test"
+        code_path: путь к файлу с кодом
+        language: "Python" или "C++"
+        tests_json: JSON-строка с тестами
+        input_data: входные данные для программы
+    
+    Returns:
+        dict с результатами
+    """
+    # Проверяем/собираем образ
+    if not check_docker_image():
+        if not build_docker_image():
+            return {"success": False, "error": "Не удалось собрать Docker-образ"}
+    
+    # Определяем имя файла в контейнере
+    ext = "py" if language == "Python" else "cpp"
+    container_code_path = f"/tmp/code.{ext}"
+    
+    # Формируем команду Docker
+    docker_cmd = [
+        "docker", "run", "--rm",
+        "--network=none",  # Без сети
+        "--memory=256m",   # Лимит памяти
+        "--cpus=1",        # Лимит CPU
+        "-v", f"{os.path.abspath(code_path)}:{container_code_path}:ro",
+        DOCKER_IMAGE,
+        mode, container_code_path, language
+    ]
+    
+    # Добавляем тесты или input
+    if mode == "test":
+        docker_cmd.append(tests_json)
+    elif mode == "run":
+        docker_cmd.append(input_data)
+    
+    try:
+        result = subprocess.run(
+            docker_cmd,
+            capture_output=True,
+            text=True,
+            timeout=60
+        )
+        
+        # Парсим JSON-ответ
+        try:
+            return json.loads(result.stdout)
+        except:
+            return {
+                "success": False,
+                "error": result.stderr or result.stdout or "Неизвестная ошибка Docker"
+            }
+    except subprocess.TimeoutExpired:
+        return {"success": False, "error": "Таймаут Docker-контейнера"}
+    except FileNotFoundError:
+        return {"success": False, "error": "Docker не установлен"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
 # Подозрительные символы (ИИ/копипаста)
 SUSPICIOUS_CHARS = {
     "\u00A0": "NBSP", "\u200B": "ZERO WIDTH SPACE", "\u200C": "ZERO WIDTH NON-JOINER",
@@ -730,6 +824,7 @@ def run_code(request):
     output = ""
     tests_passed = None
     test_results = []
+    analysis_parts = []
 
     # Определяем расширения и пути
     src_ext = "py" if language == "Python" else "cpp"
@@ -753,265 +848,207 @@ def run_code(request):
             warning += f"  → позиция {pos}: {name}\n"
         with open(ANALYSIS_LOG, "a", encoding="utf-8") as log:
             log.write("ПРЕДУПРЕЖДЕНИЕ: подозрительный код\n" + warning + "\n")
-        # Предупреждения показываем только в режиме ручного запуска
         if not test_mode:
             output += warning + "\n"
 
-    # === C++: статический анализ и компиляция ===
-    compile_error = None
-    if language == "C++":
-        # cppcheck
-        try:
-            result = subprocess.run(
-                ["cppcheck", "--enable=all", "--suppress=missingIncludeSystem", "--quiet", src_path],
-                capture_output=True, text=True, timeout=10
-            )
-            report = result.stderr.strip() or "Статических ошибок не найдено."
-            report = report.replace(src_path, "ваш код")
-            with open(ANALYSIS_LOG, "a", encoding="utf-8") as log:
-                log.write("cppcheck:\n" + report + "\n\n")
-        except FileNotFoundError:
-            with open(ANALYSIS_LOG, "a", encoding="utf-8") as log:
-                log.write("cppcheck не установлен\n")
-
-        # Компиляция
-        compile_cmd = ["g++", src_path, "-o", exe_path, "-std=c++17", "-O2", "-Wall"]
-        result = subprocess.run(compile_cmd, capture_output=True, text=True, timeout=15)
-        if result.returncode != 0:
-            compile_error = result.stderr.strip() or "Ошибка компиляции"
-            # Ошибки компиляции показываем только в режиме ручного запуска
-            if not test_mode:
-                output += f"Ошибка компиляции:\n{compile_error}\n"
-            with open(ANALYSIS_LOG, "a", encoding="utf-8") as log:
-                log.write(f"Ошибка g++:\n{compile_error}\n\n")
-
-
-    # === Запуск тестов для C++ ===
-    if test_mode and not compile_error and language == "C++":
-        json_file = selected_task.replace(".txt", ".json") if selected_task else None
-        json_path = os.path.join(TASKS_DIR, json_file) if json_file else None
-
-        if json_path and os.path.exists(json_path):
-            try:
+    # === Попытка запуска через Docker ===
+    if USE_DOCKER:
+        # Загружаем тесты
+        tests_json = "[]"
+        if test_mode:
+            json_file = selected_task.replace(".txt", ".json") if selected_task else None
+            json_path = os.path.join(TASKS_DIR, json_file) if json_file else None
+            if json_path and os.path.exists(json_path):
                 with open(json_path, "r", encoding="utf-8") as f:
-                    tests = json.load(f)
+                    tests_json = f.read()
 
-                passed = 0
+        # Определяем режим Docker
+        docker_mode = "test" if test_mode else "run"
+        
+        # Запускаем в Docker
+        docker_result = run_in_docker(
+            mode=docker_mode,
+            code_path=src_path,
+            language=language,
+            tests_json=tests_json,
+            input_data=user_input
+        )
 
-                for i, test in enumerate(tests, 1):
-                    test_input = " ".join(map(str, test.get("input", [])))
-                    expected = str(test.get("expected", "")).strip()
-
-                    try:
-                        res = subprocess.run(
-                            [exe_path],
-                            input=test_input + "\n",
-                            capture_output=True,
-                            text=True,
-                            timeout=5
-                        )
-
-                        actual = res.stdout.strip()
-                        err = res.stderr.strip()
-
-                        ok = actual == expected and not err
-
-                        test_results.append({
-                            "number": i,
-                            "input": test_input,
-                            "expected": expected,
-                            "actual": actual,
-                            "error": err,
-                            "passed": ok,
-                            "timeout": False
-                        })
-
-                        if ok:
-                            passed += 1
-
-                    except subprocess.TimeoutExpired:
-                        test_results.append({
-                            "number": i,
-                            "timeout": True,
-                            "passed": False
-                        })
-
-                tests_passed = f"{passed}/{len(tests)}"
-
-            except Exception as e:
-                with open(ANALYSIS_LOG, "a", encoding="utf-8") as log:
-                    log.write(f"Ошибка тестов C++: {e}\n")
-
-                test_results.append({
-                    "number": 0,
-                    "input": "",
-                    "expected": "",
-                    "actual": "",
-                    "error": f"Ошибка запуска тестов: {e}",
-                    "passed": False,
-                    "timeout": False
-                })
-
-    if test_mode and not compile_error and language == "Python":
-        json_file = selected_task.replace(".txt", ".json") if selected_task else None
-        json_path = os.path.join(TASKS_DIR, json_file) if json_file else None
-
-        if json_path and os.path.exists(json_path):
-            try:
-                with open(json_path, "r", encoding="utf-8") as f:
-                    tests = json.load(f)
-                passed = 0
-                for i, test in enumerate(tests, 1):
-                    test_input = " ".join(map(str, test.get("input", [])))
-                    expected = str(test.get("expected", "")).strip()
-
-                    try:
-                        res = subprocess.run(
-                            [get_python_command(), src_path],
-                            input=test_input + "\n",
-                            capture_output=True,
-                            text=True,
-                            timeout=5
-                        )
-                        actual = res.stdout.strip()
-                        ok = actual == expected and not res.stderr.strip()
-
-                        test_results.append({
-                            "number": i,
-                            "input": test_input,
-                            "expected": expected,
-                            "actual": actual,
-                            "error": res.stderr.strip(),
-                            "passed": ok,
-                            "timeout": False
-                        })
-                        if ok:
-                            passed += 1
-                    except subprocess.TimeoutExpired:
-                        test_results.append({"number": i, "timeout": True, "passed": False})
-                tests_passed = f"{passed}/{len(tests)}"
-            except Exception as e:
-                # Ошибки тестов не добавляем в output, они отображаются во вкладке "Тест-кейсы"
-                # Но логируем для отладки
-                with open(ANALYSIS_LOG, "a", encoding="utf-8") as log:
-                    log.write(f"Ошибка тестов: {e}\n")
-                # Добавляем в test_results для отображения
-                test_results.append({
-                    "number": 0,
-                    "input": "",
-                    "expected": "",
-                    "actual": "",
-                    "error": f"Ошибка запуска тестов: {e}",
-                    "passed": False,
-                    "timeout": False
-                })
-
-    # === Обычный запуск (Python или скомпилированный C++) ===
-    if not test_mode and not compile_error:
-        try:
-            cmd = [get_python_command(), src_path] if language == "Python" else [exe_path]
-            proc = subprocess.run(
-                cmd,
-                input=user_input.replace("\r\n", "\n") + "\n",
-                capture_output=True,
-                text=True,
-                timeout=7
-            )
-            output += proc.stdout
-            if proc.stderr:
-                output += "\nОшибка:\n" + proc.stderr
-        except subprocess.TimeoutExpired:
-            output += "Таймаут выполнения (7 сек)"
-        except Exception as e:
-            output += f"Ошибка запуска: {e}"
-
-    # === Valgrind для C++ (только в ручном режиме) ===
-    if language == "C++" and not compile_error and not test_mode and os.name != "nt":  # valgrind только Linux/macOS
-        try:
-            vg = subprocess.run(["valgrind", "--leak-check=full", "--error-exitcode=1", exe_path],
-                                capture_output=True, text=True, timeout=8)
-            if "definitely lost" in vg.stderr.lower():
-                output += "\nУТЕЧКИ ПАМЯТИ ОБНАРУЖЕНЫ!"
+        if docker_result.get("success", False) or "analysis" in docker_result:
+            # Парсим результаты из Docker
+            if test_mode:
+                test_results = docker_result.get("test_results", [])
+                tests_passed = docker_result.get("tests_passed", "0/0")
             else:
-                output += "\nУтечек памяти не обнаружено."
-        except FileNotFoundError:
-            pass
-
-    # === Сохранение результатов анализа и тестов в файл (ДО удаления временных файлов) ===
-    analysis_parts = []
-
-    if language == "C++":
-        # --- cppcheck ---
-        if shutil.which("cppcheck"):
-            try:
-                r = subprocess.run(
-                    ["cppcheck", "--enable=all", "--inconclusive", "--std=c++17", src_path],
-                    capture_output=True, text=True, timeout=30
-                )
-                analysis_parts.append("=== CPPCheck ===\n" + (r.stderr or "Ошибок не найдено") + "\n")
-            except Exception as e:
-                analysis_parts.append(f"=== CPPCheck ===\nОшибка: {e}\n\n")
+                output += docker_result.get("output", "")
+                if docker_result.get("error"):
+                    output += "\nОшибка:\n" + docker_result["error"]
+            
+            # Анализ кода
+            analysis = docker_result.get("analysis", {})
+            if language == "Python":
+                analysis_parts.append(f"=== pylint ===\n{analysis.get('pylint', 'Н/Д')}\n")
+                analysis_parts.append(f"=== mypy ===\n{analysis.get('mypy', 'Н/Д')}\n")
+                analysis_parts.append(f"=== bandit ===\n{analysis.get('bandit', 'Н/Д')}\n")
+            else:
+                analysis_parts.append(f"=== cppcheck ===\n{analysis.get('cppcheck', 'Н/Д')}\n")
+                analysis_parts.append(f"=== g++ warnings ===\n{analysis.get('g++', 'Н/Д')}\n")
+            
+            # Ошибка компиляции
+            if docker_result.get("compile_error"):
+                output += f"Ошибка компиляции:\n{docker_result['compile_error']}\n"
         else:
-            analysis_parts.append("=== CPPCheck ===\nНе установлен (пропущено)\n\n")
+            # Docker не сработал, fallback на локальный запуск
+            output += f"Docker недоступен: {docker_result.get('error', 'неизвестная ошибка')}\n"
+            output += "Используется локальный запуск...\n\n"
+            USE_DOCKER_FALLBACK = False  # Переключаемся на локальный
+    else:
+        USE_DOCKER_FALLBACK = False
 
-        # --- g++ compile check ---
-        if shutil.which("g++"):
-            try:
-                r = subprocess.run(
-                    ["g++", "-Wall", "-Wextra", "-std=c++17", src_path, "-o", exe_path],
-                    capture_output=True, text=True, timeout=30
-                )
-                analysis_parts.append("=== g++ warnings ===\n" + (r.stderr or "Предупреждений нет") + "\n")
-            except Exception as e:
-                analysis_parts.append(f"=== g++ ===\nОшибка: {e}\n\n")
-        else:
-            analysis_parts.append("=== g++ ===\nНе установлен (пропущено)\n\n")
+    # === Локальный fallback (если Docker не работает) ===
+    if not USE_DOCKER or (USE_DOCKER and not docker_result.get("success", False) and "analysis" not in docker_result):
+        compile_error = None
+        
+        # C++: компиляция
+        if language == "C++":
+            if shutil.which("g++"):
+                compile_cmd = ["g++", src_path, "-o", exe_path, "-std=c++17", "-O2", "-Wall"]
+                result = subprocess.run(compile_cmd, capture_output=True, text=True, timeout=15)
+                if result.returncode != 0:
+                    compile_error = result.stderr.strip() or "Ошибка компиляции"
+                    if not test_mode:
+                        output += f"Ошибка компиляции:\n{compile_error}\n"
+            else:
+                compile_error = "g++ не установлен"
+                output += "g++ не установлен. Установите компилятор C++.\n"
 
-    if language == "Python":
-        # --- pylint ---
-        if shutil.which("pylint"):
-            try:
-                r = subprocess.run(
-                    ["pylint", "--disable=R,C", src_path],
-                    capture_output=True, text=True, timeout=30
-                )
-                analysis_parts.append("=== pylint ===\n" + (r.stdout or "Ошибок не найдено") + "\n")
-            except Exception as e:
-                analysis_parts.append(f"=== pylint ===\nОшибка: {e}\n\n")
-        else:
-            analysis_parts.append("=== pylint ===\nНе установлен (пропущено)\n\n")
+        # Запуск тестов
+        if test_mode and not compile_error:
+            json_file = selected_task.replace(".txt", ".json") if selected_task else None
+            json_path = os.path.join(TASKS_DIR, json_file) if json_file else None
 
-        # --- mypy ---
-        if shutil.which("mypy"):
-            try:
-                r = subprocess.run(
-                    ["mypy", "--ignore-missing-imports", src_path],
-                    capture_output=True, text=True, timeout=30
-                )
-                analysis_parts.append("=== mypy ===\n" + (r.stdout or "") + (r.stderr or "") + "\n")
-            except Exception as e:
-                analysis_parts.append(f"=== mypy ===\nОшибка: {e}\n\n")
-        else:
-            analysis_parts.append("=== mypy ===\nНе установлен (пропущено)\n\n")
+            if json_path and os.path.exists(json_path):
+                try:
+                    with open(json_path, "r", encoding="utf-8") as f:
+                        tests = json.load(f)
+                    passed = 0
+                    for i, test in enumerate(tests, 1):
+                        test_input = " ".join(map(str, test.get("input", [])))
+                        expected = str(test.get("expected", "")).strip()
 
-        # --- bandit ---
-        if shutil.which("bandit"):
+                        try:
+                            if language == "Python":
+                                cmd = [get_python_command(), src_path]
+                            else:
+                                cmd = [exe_path]
+                            
+                            res = subprocess.run(
+                                cmd,
+                                input=test_input + "\n",
+                                capture_output=True,
+                                text=True,
+                                timeout=5
+                            )
+                            actual = res.stdout.strip()
+                            ok = actual == expected and not res.stderr.strip()
+
+                            test_results.append({
+                                "number": i,
+                                "input": test_input,
+                                "expected": expected,
+                                "actual": actual,
+                                "error": res.stderr.strip(),
+                                "passed": ok,
+                                "timeout": False
+                            })
+                            if ok:
+                                passed += 1
+                        except subprocess.TimeoutExpired:
+                            test_results.append({"number": i, "timeout": True, "passed": False})
+                    tests_passed = f"{passed}/{len(tests)}"
+                except Exception as e:
+                    test_results.append({
+                        "number": 0,
+                        "error": f"Ошибка запуска тестов: {e}",
+                        "passed": False,
+                        "timeout": False
+                    })
+
+        # Обычный запуск
+        if not test_mode and not compile_error:
             try:
-                r = subprocess.run(
-                    ["bandit", "-q", "-r", src_path],
-                    capture_output=True, text=True, timeout=30
+                cmd = [get_python_command(), src_path] if language == "Python" else [exe_path]
+                proc = subprocess.run(
+                    cmd,
+                    input=user_input.replace("\r\n", "\n") + "\n",
+                    capture_output=True,
+                    text=True,
+                    timeout=7
                 )
-                analysis_parts.append("=== bandit ===\n" + (r.stdout or "Уязвимостей не найдено") + (r.stderr or "") + "\n")
+                output += proc.stdout
+                if proc.stderr:
+                    output += "\nОшибка:\n" + proc.stderr
+            except subprocess.TimeoutExpired:
+                output += "Таймаут выполнения (7 сек)"
             except Exception as e:
-                analysis_parts.append(f"=== bandit ===\nОшибка: {e}\n\n")
-        else:
-            analysis_parts.append("=== bandit ===\nНе установлен (пропущено)\n\n")
+                output += f"Ошибка запуска: {e}"
+
+        # Локальный анализ
+        if language == "C++":
+            if shutil.which("cppcheck"):
+                try:
+                    r = subprocess.run(["cppcheck", "--enable=all", "--std=c++17", src_path],
+                                      capture_output=True, text=True, timeout=30)
+                    analysis_parts.append("=== cppcheck ===\n" + (r.stderr or "Ошибок не найдено") + "\n")
+                except Exception as e:
+                    analysis_parts.append(f"=== cppcheck ===\nОшибка: {e}\n")
+            else:
+                analysis_parts.append("=== cppcheck ===\nНе установлен\n")
+
+            if shutil.which("g++"):
+                try:
+                    r = subprocess.run(["g++", "-Wall", "-Wextra", "-std=c++17", src_path, "-o", exe_path],
+                                      capture_output=True, text=True, timeout=30)
+                    analysis_parts.append("=== g++ warnings ===\n" + (r.stderr or "Предупреждений нет") + "\n")
+                except Exception as e:
+                    analysis_parts.append(f"=== g++ ===\nОшибка: {e}\n")
+
+        if language == "Python":
+            if shutil.which("pylint"):
+                try:
+                    r = subprocess.run(["pylint", "--disable=R,C", src_path],
+                                      capture_output=True, text=True, timeout=30)
+                    analysis_parts.append("=== pylint ===\n" + (r.stdout or "Ошибок не найдено") + "\n")
+                except Exception as e:
+                    analysis_parts.append(f"=== pylint ===\nОшибка: {e}\n")
+            else:
+                analysis_parts.append("=== pylint ===\nНе установлен\n")
+
+            if shutil.which("mypy"):
+                try:
+                    r = subprocess.run(["mypy", "--ignore-missing-imports", src_path],
+                                      capture_output=True, text=True, timeout=30)
+                    analysis_parts.append("=== mypy ===\n" + (r.stdout or "") + (r.stderr or "") + "\n")
+                except Exception as e:
+                    analysis_parts.append(f"=== mypy ===\nОшибка: {e}\n")
+            else:
+                analysis_parts.append("=== mypy ===\nНе установлен\n")
+
+            if shutil.which("bandit"):
+                try:
+                    r = subprocess.run(["bandit", "-q", "-r", src_path],
+                                      capture_output=True, text=True, timeout=30)
+                    analysis_parts.append("=== bandit ===\n" + (r.stdout or "Уязвимостей не найдено") + "\n")
+                except Exception as e:
+                    analysis_parts.append(f"=== bandit ===\nОшибка: {e}\n")
+            else:
+                analysis_parts.append("=== bandit ===\nНе установлен\n")
 
     # Запись анализа в лог
     with open(ANALYSIS_LOG, "w", encoding="utf-8") as f:
         f.write(f"=== Анализ кода ({language}) ===\n" + "".join(analysis_parts))
 
-    # === Очистка временных файлов (ПОСЛЕ анализа) ===
+    # === Очистка временных файлов ===
     for path in (src_path, exe_path):
         try:
             if os.path.exists(path):

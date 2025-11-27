@@ -6,6 +6,7 @@ WORKDIR /usr/src/app
 RUN apt-get update && apt-get install -y \
         build-essential \
         cppcheck \
+        valgrind \
         git \
         wget \
         curl \
