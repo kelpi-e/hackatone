@@ -192,6 +192,24 @@ class User(AbstractUser):
         verbose_name="Дата регистрации"
     )
     
+    # Поля для бана
+    is_banned = models.BooleanField(
+        default=False,
+        verbose_name="Заблокирован",
+        help_text="Заблокирован ли пользователь за плохое поведение"
+    )
+    ban_reason = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name="Причина блокировки",
+        help_text="Причина блокировки пользователя"
+    )
+    banned_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        verbose_name="Дата блокировки"
+    )
+    
     USERNAME_FIELD = 'username'
     REQUIRED_FIELDS = ['role']
     
@@ -210,3 +228,132 @@ class User(AbstractUser):
     def is_candidate(self):
         """Проверяет, является ли пользователь кандидатом"""
         return self.role == 'CANDIDATE'
+
+
+class InterviewSession(models.Model):
+    """Модель для хранения состояния интервью пользователя"""
+    
+    user = models.OneToOneField(
+        'User',
+        on_delete=models.CASCADE,
+        related_name='interview_session',
+        limit_choices_to={'role': 'CANDIDATE'},
+        verbose_name="Пользователь",
+        help_text="Кандидат, проходящий интервью"
+    )
+    
+    stage = models.CharField(
+        max_length=50,
+        default='init',
+        verbose_name="Стадия",
+        help_text="Текущая стадия интервью: init, hard_desc, theory, finished"
+    )
+    
+    hard_desc = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name="Описание навыков",
+        help_text="Описание технических навыков кандидата"
+    )
+    
+    theory_questions = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name="Теоретические вопросы",
+        help_text="Список теоретических вопросов"
+    )
+    
+    current_question_idx = models.IntegerField(
+        default=0,
+        verbose_name="Текущий индекс вопроса",
+        help_text="Индекс текущего вопроса в списке"
+    )
+    
+    chat_history = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name="История чата",
+        help_text="История сообщений интервью в формате JSON"
+    )
+    
+    terminated = models.BooleanField(
+        default=False,
+        verbose_name="Прервано",
+        help_text="Было ли интервью прервано из-за плохого поведения"
+    )
+    
+    termination_reason = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name="Причина прерывания",
+        help_text="Причина прерывания интервью"
+    )
+    
+    awaiting_hint_answer = models.BooleanField(
+        default=False,
+        verbose_name="Ожидается ответ на наводящий вопрос",
+        help_text="Ожидается ли ответ на наводящий вопрос"
+    )
+    
+    current_hint = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name="Текущий наводящий вопрос",
+        help_text="Текущий наводящий вопрос, если есть"
+    )
+    
+    theory_completed = models.BooleanField(
+        default=False,
+        verbose_name="Теория завершена",
+        help_text="Завершена ли теоретическая часть интервью"
+    )
+    
+    interview_started = models.BooleanField(
+        default=False,
+        verbose_name="Интервью начато",
+        help_text="Начато ли интервью"
+    )
+    
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name="Дата создания"
+    )
+    
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        verbose_name="Дата обновления"
+    )
+    
+    class Meta:
+        verbose_name = "Сессия интервью"
+        verbose_name_plural = "Сессии интервью"
+        ordering = ['-updated_at']
+    
+    def __str__(self):
+        return f"Интервью: {self.user.username} ({self.stage})"
+    
+    def get_interactor_data(self):
+        """Возвращает данные в формате для Interactor"""
+        return {
+            'stage': self.stage,
+            'hard_desc': self.hard_desc,
+            'theory_questions': self.theory_questions,
+            'current_question_idx': self.current_question_idx,
+            'chat_history': self.chat_history,
+            'terminated': self.terminated,
+            'awaiting_hint_answer': self.awaiting_hint_answer,
+            'current_hint': self.current_hint
+        }
+    
+    def update_from_interactor(self, interactor):
+        """Обновляет данные из объекта Interactor"""
+        self.stage = interactor.stage
+        self.hard_desc = interactor.hard_desc
+        self.theory_questions = interactor.theory_questions
+        self.current_question_idx = interactor.current_question_idx
+        self.chat_history = interactor.chat_history
+        self.terminated = interactor.terminated
+        self.termination_reason = getattr(interactor, 'termination_reason', None)
+        self.awaiting_hint_answer = interactor.awaiting_hint_answer
+        self.current_hint = interactor.current_hint
+        self.save()

@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import Task, Report, User
+from .models import Task, Report, User, InterviewSession
 
 
 @admin.register(Task)
@@ -52,15 +52,19 @@ class ReportAdmin(admin.ModelAdmin):
 
 @admin.register(User)
 class CustomUserAdmin(UserAdmin):
-    list_display = ('username', 'role', 'is_active', 'created_at')
-    list_filter = ('role', 'is_active', 'created_at')
+    list_display = ('username', 'role', 'is_active', 'is_banned', 'banned_at', 'created_at')
+    list_filter = ('role', 'is_active', 'is_banned', 'created_at')
     search_fields = ('username',)
-    readonly_fields = ('created_at', 'last_login', 'date_joined')
+    readonly_fields = ('created_at', 'last_login', 'date_joined', 'banned_at')
     
     fieldsets = (
         (None, {'fields': ('username', 'password')}),
         ('Персональная информация', {
             'fields': ('role',)
+        }),
+        ('Блокировка', {
+            'fields': ('is_banned', 'ban_reason', 'banned_at'),
+            'classes': ('collapse',)
         }),
         ('Права доступа', {
             'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions'),
@@ -77,3 +81,25 @@ class CustomUserAdmin(UserAdmin):
             'fields': ('username', 'role', 'password1', 'password2'),
         }),
     )
+
+
+@admin.register(InterviewSession)
+class InterviewSessionAdmin(admin.ModelAdmin):
+    list_display = ('user', 'stage', 'theory_completed', 'interview_started', 'terminated', 'updated_at')
+    list_filter = ('stage', 'theory_completed', 'interview_started', 'terminated', 'created_at')
+    search_fields = ('user__username',)
+    fieldsets = (
+        ('Основная информация', {
+            'fields': ('user', 'stage', 'theory_completed', 'interview_started', 'terminated')
+        }),
+        ('Данные интервью', {
+            'fields': ('hard_desc', 'theory_questions', 'current_question_idx', 'chat_history')
+        }),
+        ('Дополнительно', {
+            'fields': ('termination_reason', 'awaiting_hint_answer', 'current_hint')
+        }),
+        ('Даты', {
+            'fields': ('created_at', 'updated_at')
+        }),
+    )
+    readonly_fields = ('created_at', 'updated_at')

@@ -3,13 +3,23 @@ import json
 import subprocess
 import unicodedata
 import shutil
+import sys
 from django.shortcuts import render, redirect
 from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.conf import settings
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
 from .forms import UserRegistrationForm, UserLoginForm
-from .models import User
+from .models import User, Report, InterviewSession
+from django.utils import timezone
+
+# Добавляем путь к interactor
+interactor_path = os.path.join(settings.BASE_DIR.parent, 'inreractor')
+if interactor_path not in sys.path:
+    sys.path.insert(0, interactor_path)
 
 # =============================================================================
 # Пути и настройки
@@ -26,6 +36,19 @@ SUSPICIOUS_CHARS = {
     "\u2013": "EN DASH", "\u2014": "EM DASH", "\u2018": "LEFT SINGLE QUOTE",
     "\u2019": "RIGHT SINGLE QUOTE", "\u201C": "LEFT DOUBLE QUOTE", "\u201D": "RIGHT DOUBLE QUOTE",
 }
+
+# =============================================================================
+# Функции для работы с баном
+# =============================================================================
+def ban_user(user, reason):
+    """
+    Блокирует пользователя за плохое поведение
+    """
+    if not user.is_banned:
+        user.is_banned = True
+        user.ban_reason = reason
+        user.banned_at = timezone.now()
+        user.save(update_fields=['is_banned', 'ban_reason', 'banned_at'])
 
 # =============================================================================
 # Вспомогательные функции
@@ -76,6 +99,14 @@ def check_suspicious_code(code_text):
 # =============================================================================
 def register(request):
     if request.user.is_authenticated:
+        # Проверяем, прошёл ли пользователь теоретическую часть
+        if request.user.is_candidate():
+            try:
+                interview_session = InterviewSession.objects.get(user=request.user)
+                if not interview_session.theory_completed:
+                    return redirect('interview')
+            except InterviewSession.DoesNotExist:
+                return redirect('interview')
         return redirect('runcode')
     
     if request.method == "POST":
@@ -85,6 +116,10 @@ def register(request):
             # Явно указываем backend для логина
             login(request, user, backend='codeapp.backends.UsernameOnlyBackend')
             messages.success(request, f'Добро пожаловать, {user.username}!')
+            # Проверяем, нужно ли пройти интервью
+            if user.is_candidate():
+                # Для кандидатов всегда начинаем с интервью
+                return redirect('interview')
             return redirect('runcode')
     else:
         form = UserRegistrationForm()
@@ -96,6 +131,14 @@ def register(request):
 
 def user_login(request):
     if request.user.is_authenticated:
+        # Проверяем, прошёл ли пользователь теоретическую часть
+        if request.user.is_candidate():
+            try:
+                interview_session = InterviewSession.objects.get(user=request.user)
+                if not interview_session.theory_completed:
+                    return redirect('interview')
+            except InterviewSession.DoesNotExist:
+                return redirect('interview')
         return redirect('runcode')
     
     if request.method == "POST":
@@ -107,6 +150,14 @@ def user_login(request):
                 # Явно указываем backend для логина
                 login(request, user, backend='codeapp.backends.UsernameOnlyBackend')
                 messages.success(request, f'Добро пожаловать, {user.username}!')
+                # Проверяем, нужно ли пройти интервью
+                if user.is_candidate():
+                    try:
+                        interview_session = InterviewSession.objects.get(user=user)
+                        if not interview_session.theory_completed:
+                            return redirect('interview')
+                    except InterviewSession.DoesNotExist:
+                        return redirect('interview')
                 return redirect('runcode')
             except User.DoesNotExist:
                 messages.error(request, 'Пользователь с таким никнеймом не найден.')
@@ -129,26 +180,293 @@ def user_logout(request):
 # Основные страницы
 # =============================================================================
 def home(request):
-    return render(request, "index.html")
+    context = {}
+    if request.user.is_authenticated:
+        if hasattr(request.user, 'is_banned') and request.user.is_banned:
+            context['show_ban_modal'] = True
+        # Определяем стадию для кандидатов
+        if request.user.is_candidate():
+            try:
+                interview_session = InterviewSession.objects.get(user=request.user)
+                theory_completed = interview_session.theory_completed
+            except InterviewSession.DoesNotExist:
+                theory_completed = False
+            context['show_interview_link'] = not theory_completed
+            context['show_editor_link'] = theory_completed
+    return render(request, "index.html", context)
+
+@login_required
+def interview(request):
+    """
+    Страница интервью - показывается только для кандидатов
+    При первом заходе показывается чат интервью
+    После завершения теории - переход в редактор
+    """
+    # Проверяем роль - только кандидаты могут проходить интервью
+    if not request.user.is_candidate():
+        messages.error(request, 'Интервью доступно только для кандидатов.')
+        return redirect('runcode')
+    
+    # Получаем или создаем сессию интервью из БД
+    try:
+        interview_session = InterviewSession.objects.get(user=request.user)
+        interview_started = interview_session.interview_started
+        theory_completed = interview_session.theory_completed
+        interview_chat_history = interview_session.chat_history
+    except InterviewSession.DoesNotExist:
+        interview_session = None
+        interview_started = False
+        theory_completed = False
+        interview_chat_history = []
+    
+    # Если теория завершена, перенаправляем в редактор
+    if theory_completed:
+        return redirect('runcode')
+    
+    context = {
+        'interview_started': interview_started,
+        'theory_completed': theory_completed,
+        'show_interview_link': True,  # На странице интервью всегда показываем ссылку на интервью
+        'show_editor_link': False,
+        'interview_chat_history': interview_chat_history,
+    }
+    if request.user.is_banned:
+        context['show_ban_modal'] = True
+    return render(request, "codeapp/interview.html", context)
+
+@login_required
+@require_http_methods(["POST"])
+def interview_api(request):
+    """
+    API endpoint для работы с интервью (AJAX запросы)
+    """
+    if not request.user.is_candidate():
+        return JsonResponse({'error': 'Доступно только для кандидатов'}, status=403)
+    
+    action = request.POST.get('action')
+    
+    # Импортируем Interactor
+    try:
+        from interactor import Interactor
+    except ImportError as e:
+        import traceback
+        error_msg = str(e)
+        # Проверяем, какая именно ошибка импорта
+        if 'openai' in error_msg.lower():
+            return JsonResponse({
+                'error': 'Модуль openai не установлен. Установите его командой: pip install openai',
+                'details': str(e)
+            }, status=500)
+        else:
+            return JsonResponse({
+                'error': f'Ошибка импорта Interactor: {error_msg}',
+                'details': traceback.format_exc()
+            }, status=500)
+    except Exception as e:
+        import traceback
+        return JsonResponse({
+            'error': f'Ошибка при инициализации Interactor: {str(e)}',
+            'details': traceback.format_exc()
+        }, status=500)
+    
+    # Получаем или создаем InterviewSession из БД
+    try:
+        interview_session = InterviewSession.objects.get(user=request.user)
+    except InterviewSession.DoesNotExist:
+        interview_session = InterviewSession.objects.create(user=request.user)
+    
+    api_key = "sk-EntOXD173KXh0i-jb0esww"  # TODO: вынести в settings
+    interactor = Interactor(key=api_key)
+    
+    # Восстанавливаем состояние из БД
+    # Всегда восстанавливаем hard_desc, если он есть в БД
+    if interview_session.hard_desc:
+        interactor.hard_desc = interview_session.hard_desc
+    
+    if interview_session.stage != 'init' or interview_session.chat_history:
+        interactor.stage = interview_session.stage
+        interactor.theory_questions = interview_session.theory_questions
+        interactor.current_question_idx = interview_session.current_question_idx
+        interactor.chat_history = interview_session.chat_history
+        interactor.terminated = interview_session.terminated
+        interactor.awaiting_hint_answer = interview_session.awaiting_hint_answer
+        interactor.current_hint = interview_session.current_hint
+        if interview_session.termination_reason:
+            interactor.termination_reason = interview_session.termination_reason
+    
+    if action == 'start_hard_desc':
+        # Начало интервью - описание навыков
+        try:
+            hard_desc = request.POST.get('hard_desc', '').strip()
+            result = interactor.put_hard_desc(hard_desc)
+            
+            if result['success']:
+                # Сохраняем в БД
+                interview_session.interview_started = True
+                interview_session.update_from_interactor(interactor)
+            
+            # Проверяем, был ли интервью прерван - если да, баним пользователя
+            if interactor.terminated and interactor.termination_reason:
+                ban_user(request.user, interactor.termination_reason)
+                result['banned'] = True
+                result['ban_reason'] = interactor.termination_reason
+            
+            return JsonResponse(result)
+        except Exception as e:
+            import traceback
+            return JsonResponse({
+                'success': False,
+                'error': f'Ошибка при обработке описания навыков: {str(e)}',
+                'details': traceback.format_exc()
+            }, status=500)
+    
+    elif action == 'start_interview':
+        # Запуск интервью после описания навыков
+        try:
+            # Убеждаемся, что hard_desc восстановлен из БД
+            if not interactor.hard_desc and interview_session.hard_desc:
+                interactor.hard_desc = interview_session.hard_desc
+            
+            result = interactor.start_interview()
+            
+            if result['success']:
+                # Сохраняем в БД
+                interview_session.update_from_interactor(interactor)
+            
+            return JsonResponse(result)
+        except Exception as e:
+            import traceback
+            return JsonResponse({
+                'success': False,
+                'error': f'Ошибка при запуске интервью: {str(e)}',
+                'details': traceback.format_exc()
+            }, status=500)
+    
+    elif action == 'get_question':
+        # Получить следующий вопрос
+        try:
+            question = interactor.get_next_question()
+            
+            # Сохраняем в БД
+            interview_session.update_from_interactor(interactor)
+            
+            if question is None:
+                # Интервью завершено
+                if interactor.stage == 'finished':
+                    interview_session.theory_completed = True
+                    interview_session.save()
+                    return JsonResponse({
+                        'question': None,
+                        'finished': True,
+                        'message': 'Теоретическая часть завершена! Переход к практическим заданиям...'
+                    })
+            
+            return JsonResponse({
+                'question': question,
+                'finished': False,
+                'is_hint': interactor.awaiting_hint_answer,
+                'total_questions': len(interactor.theory_questions),
+                'current_idx': interactor.current_question_idx
+            })
+        except Exception as e:
+            import traceback
+            return JsonResponse({
+                'error': f'Ошибка при получении вопроса: {str(e)}',
+                'details': traceback.format_exc()
+            }, status=500)
+    
+    elif action == 'submit_answer':
+        # Отправить ответ на вопрос
+        try:
+            answer = request.POST.get('answer', '').strip()
+            result = interactor.submit_theory_answer(answer)
+            
+            if result['success']:
+                # Получаем последний элемент из chat_history для отображения
+                last_qa = interactor.chat_history[-1] if interactor.chat_history else None
+                
+                # Сохраняем в БД
+                interview_session.update_from_interactor(interactor)
+                
+                # Проверяем, завершена ли теория
+                if interactor.stage == 'finished':
+                    interview_session.theory_completed = True
+                    interview_session.save()
+                    result['theory_completed'] = True
+                
+                result['last_qa'] = last_qa
+            
+            return JsonResponse(result)
+        except Exception as e:
+            import traceback
+            return JsonResponse({
+                'success': False,
+                'error': f'Ошибка при отправке ответа: {str(e)}',
+                'details': traceback.format_exc()
+            }, status=500)
+    
+    elif action == 'get_history':
+        # Получить историю чата из БД
+        try:
+            return JsonResponse({
+                'chat_history': interview_session.chat_history,
+                'stage': interview_session.stage
+            })
+        except Exception as e:
+            import traceback
+            return JsonResponse({
+                'error': f'Ошибка при получении истории: {str(e)}',
+                'details': traceback.format_exc()
+            }, status=500)
+    
+    if not action:
+        return JsonResponse({'error': 'Не указано действие (action)'}, status=400)
+    
+    return JsonResponse({'error': f'Неизвестное действие: {action}'}, status=400)
 
 @login_required
 def index(request):
+    # Для кандидатов проверяем, прошли ли они теоретическую часть
+    if request.user.is_candidate():
+        try:
+            interview_session = InterviewSession.objects.get(user=request.user)
+            if not interview_session.theory_completed:
+                # Перенаправляем на интервью, если теория не завершена
+                return redirect('interview')
+            theory_completed = True
+            interview_chat_history = interview_session.chat_history
+        except InterviewSession.DoesNotExist:
+            # Если сессии нет, перенаправляем на интервью
+            return redirect('interview')
+    else:
+        # Для не-кандидатов (HR, админы) не проверяем интервью
+        theory_completed = False
+        interview_chat_history = []
+    
     tasks = get_task_list()
     selected = request.GET.get("task") or (tasks[0] if tasks else None)
     language = request.GET.get("language", "Python")
-    return render(request, "codeapp/ide.html", {
-        "tasks": tasks,
-        "selected_task": selected,
+    
+    context = {
+            "tasks": tasks,
+            "selected_task": selected,
         "task_text": get_task_text(selected),
-        "code": "",
-        "output": "",
-        "input_data": "",
+            "code": "",
+            "output": "",
+            "input_data": "",
         "tests_passed": None,
         "test_results": [],
         "test_mode": False,
         "language": language,
         "code_executed": False,  # Код еще не был запущен
-    })
+        "theory_completed": theory_completed,
+        "interview_chat_history": interview_chat_history,
+        'show_interview_link': False,  # На странице редактора показываем ссылку на редактор
+        'show_editor_link': True,
+    }
+    if request.user.is_banned:
+        context['show_ban_modal'] = True
+    return render(request, "codeapp/ide.html", context)
 
 # =============================================================================
 # Главная функция — запуск и тестирование кода (Python + C++)
@@ -323,12 +641,12 @@ def run_code(request):
     # Если код был запущен, но ничего не вывел - это нормально, показываем пустую строку
     
     return render(request, "codeapp/ide.html", {
-        "tasks": get_task_list(),
+            "tasks": get_task_list(),
         "selected_task": selected_task,
         "task_text": get_task_text(selected_task),
-        "code": code,
+            "code": code,
         "output": output,  # Может быть пустым, если код ничего не вывел - это нормально
-        "input_data": user_input,
+            "input_data": user_input,
         "tests_passed": tests_passed,
         "test_results": test_results,
         "test_mode": test_mode,

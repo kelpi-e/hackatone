@@ -63,11 +63,209 @@
 
       .editor-layout {
         display: grid;
-        grid-template-columns: 40% 12px 60%;
+        grid-template-columns: 40% 12px calc(60% - 12px);
         gap: 0;
         height: calc(100vh - 104px);
         margin: 0;
         padding: 0;
+        position: relative;
+      }
+
+      /* Плашка интервью справа */
+      .interview-sidebar {
+        position: fixed;
+        right: 16px;
+        bottom: 16px;
+        width: 380px;
+        max-width: 380px;
+        background: var(--color-surface, #ffffff);
+        border-radius: 16px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+        z-index: 1000;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        opacity: 0;
+        transform: translateY(20px) scale(0.95);
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        /* По умолчанию свернута - компактный вид */
+        max-height: 50px;
+        height: auto;
+      }
+
+      .interview-sidebar.visible {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+
+      /* Когда развернута */
+      .interview-sidebar:not(.collapsed) {
+        max-height: calc(100vh - 120px);
+        height: auto;
+      }
+
+      .interview-sidebar-header {
+        padding: 16px 20px;
+        background: linear-gradient(135deg, var(--color-primary, #0066ff) 0%, var(--color-accent, #00a3b8) 100%);
+        color: white;
+        font-weight: 600;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        cursor: pointer;
+        user-select: none;
+      }
+
+      .interview-sidebar-header:hover {
+        background: linear-gradient(135deg, var(--color-accent, #00a3b8) 0%, var(--color-primary, #0066ff) 100%);
+      }
+
+      .interview-sidebar-toggle {
+        background: none;
+        border: none;
+        color: white;
+        cursor: pointer;
+        padding: 4px 8px;
+        font-size: 18px;
+        line-height: 1;
+        transition: transform 0.3s;
+      }
+
+      .interview-sidebar.collapsed .interview-sidebar-toggle {
+        transform: rotate(180deg);
+      }
+
+      .interview-sidebar-content {
+        flex: 1;
+        overflow-y: auto;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        max-height: calc(100vh - 180px);
+      }
+
+      .interview-sidebar-content::-webkit-scrollbar {
+        width: 6px;
+      }
+
+      .interview-sidebar-content::-webkit-scrollbar-track {
+        background: #f8f9fa;
+        border-radius: 10px;
+      }
+
+      .interview-sidebar-content::-webkit-scrollbar-thumb {
+        background: #dee2e6;
+        border-radius: 10px;
+      }
+
+      .interview-sidebar-content::-webkit-scrollbar-thumb:hover {
+        background: #adb5bd;
+      }
+
+      .interview-sidebar.collapsed .interview-sidebar-content {
+        display: none;
+      }
+
+      /* Компактный вид в свернутом состоянии */
+      .interview-sidebar.collapsed {
+        max-height: 50px !important;
+        height: 50px;
+        width: auto;
+        min-width: 200px;
+      }
+
+      .interview-sidebar.collapsed .interview-sidebar-header {
+        padding: 12px 16px;
+      }
+
+      .interview-message {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .interview-message-question {
+        background: linear-gradient(135deg, rgba(0, 102, 255, 0.1) 0%, rgba(0, 163, 184, 0.1) 100%);
+        border-left: 3px solid var(--color-primary, #0066ff);
+        padding: 12px 16px;
+        border-radius: 8px;
+        font-size: 13px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+      }
+
+      .interview-message-answer {
+        background: var(--color-surface, #ffffff);
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        padding: 12px 16px;
+        border-radius: 8px;
+        font-size: 13px;
+        line-height: 1.5;
+        margin-left: auto;
+        max-width: 85%;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+      }
+
+      .interview-message-label {
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 4px;
+      }
+
+      .interview-message-question .interview-message-label {
+        color: var(--color-primary, #0066ff);
+      }
+
+      .interview-message-answer .interview-message-label {
+        color: var(--color-on-surface-secondary, #6c757d);
+      }
+
+      /* Адаптивность плашки */
+      @media (max-width: 1400px) {
+        .editor-layout {
+          grid-template-columns: 35% 12px calc(65% - 12px);
+        }
+      }
+
+      @media (max-width: 1200px) {
+        .interview-sidebar {
+          width: 320px;
+          max-width: 320px;
+        }
+        
+        .interview-sidebar:not(.collapsed) {
+          max-height: calc(100vh - 100px);
+        }
+      }
+
+      @media (max-width: 768px) {
+        .interview-sidebar {
+          width: calc(100% - 32px);
+          right: 16px;
+          left: 16px;
+          bottom: 16px;
+        }
+        
+        .interview-sidebar.collapsed {
+          width: auto;
+          min-width: 180px;
+          right: 16px;
+          left: auto;
+        }
+
+        .interview-sidebar:not(.collapsed) {
+          max-height: calc(100vh - 100px);
+        }
+
+        .editor-layout {
+          grid-template-columns: 100%;
+        }
       }
 
       .task-panel {
@@ -1118,9 +1316,22 @@
                         <a href="{% url 'home' %}">
                             <div class="navigation-link"><span>Главная</span></div>
                         </a>
-                        <a href="{% url 'runcode' %}">
-                            <div class="navigation-link"><span>Редактор</span></div>
-                        </a>
+                        {% if user.is_authenticated and user.is_candidate %}
+                            {% if show_interview_link %}
+                            <a href="{% url 'interview' %}">
+                                <div class="navigation-link"><span>Интервью</span></div>
+                            </a>
+                            {% endif %}
+                            {% if show_editor_link %}
+                            <a href="{% url 'runcode' %}">
+                                <div class="navigation-link"><span>Редактор</span></div>
+                            </a>
+                            {% endif %}
+                        {% else %}
+                            <a href="{% url 'runcode' %}">
+                                <div class="navigation-link"><span>Редактор</span></div>
+                            </a>
+                        {% endif %}
                     </div>
                     <a href="{% url 'home' %}">
                         <div class="navigation-logo">
@@ -1176,9 +1387,22 @@
                     <a href="{% url 'home' %}">
                         <div class="navigation-mobile-link"><span>Главная</span></div>
                     </a>
-                    <a href="{% url 'runcode' %}">
-                        <div class="navigation-mobile-link"><span>Редактор</span></div>
-                    </a>
+                    {% if user.is_authenticated and user.is_candidate %}
+                        {% if show_interview_link %}
+                        <a href="{% url 'interview' %}">
+                            <div class="navigation-mobile-link"><span>Интервью</span></div>
+                        </a>
+                        {% endif %}
+                        {% if show_editor_link %}
+                        <a href="{% url 'runcode' %}">
+                            <div class="navigation-mobile-link"><span>Редактор</span></div>
+                        </a>
+                        {% endif %}
+                    {% else %}
+                        <a href="{% url 'runcode' %}">
+                            <div class="navigation-mobile-link"><span>Редактор</span></div>
+                        </a>
+                    {% endif %}
                     {% if user.is_authenticated %}
                         <div class="navigation-mobile-link" style="color: var(--color-on-surface-secondary, #6c757d);">
                             <span>{{ user.username }} ({{ user.get_role_display }})</span>
@@ -1364,6 +1588,37 @@
                 </div>
             </div>
         </div>
+
+        <!-- Плашка интервью справа (показывается после завершения теории) -->
+        {% if theory_completed and interview_chat_history %}
+        <div class="interview-sidebar collapsed" id="interviewSidebar">
+            <div class="interview-sidebar-header" onclick="toggleInterviewSidebar()">
+                <span>💬 История интервью</span>
+                <button class="interview-sidebar-toggle" aria-label="Свернуть/развернуть">▼</button>
+            </div>
+            <div class="interview-sidebar-content">
+                {% for item in interview_chat_history %}
+                    {% if item.type == 'theory_qa' %}
+                        <div class="interview-message">
+                            <div class="interview-message-question">
+                                <div class="interview-message-label">💬 Вопрос</div>
+                                <div>{{ item.question }}</div>
+                            </div>
+                            <div class="interview-message-answer">
+                                <div class="interview-message-label">✍️ Ваш ответ</div>
+                                <div>{{ item.answer }}</div>
+                                {% if item.comment %}
+                                    <div style="font-size: 12px; color: var(--color-on-surface-secondary, #6c757d); font-style: italic; margin-top: 6px; padding-left: 8px; border-left: 2px solid rgba(0, 0, 0, 0.1);">
+                                        {{ item.comment }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
     </section>
 
     <!-- Footer -->
@@ -1769,6 +2024,27 @@
       }
       
       // Sync textarea with hidden input and form submission
+      // Функция для сворачивания/разворачивания плашки интервью
+      function toggleInterviewSidebar() {
+        const sidebar = document.getElementById('interviewSidebar');
+        if (sidebar) {
+          sidebar.classList.toggle('collapsed');
+        }
+      }
+
+      // Показать плашку интервью с анимацией
+      document.addEventListener('DOMContentLoaded', function() {
+        const interviewSidebar = document.getElementById('interviewSidebar');
+        if (interviewSidebar) {
+          // Небольшая задержка для плавного появления
+          setTimeout(() => {
+            interviewSidebar.classList.add('visible');
+          }, 300);
+          // По умолчанию плашка свернута, чтобы не мешать работе с кодом
+          // Пользователь может развернуть её при необходимости
+        }
+      });
+
       document.addEventListener('DOMContentLoaded', function() {
         const userInput = document.getElementById('user-input');
         const hiddenInput = document.getElementById('input_data');
@@ -1803,5 +2079,8 @@
         {% endif %}
       });
     </script>
+
+    <!-- Модальное окно бана -->
+    {% include 'codeapp/ban_modal.html' %}
 </body>
 </html>

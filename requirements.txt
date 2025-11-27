@@ -1,0 +1,12 @@
+# Django (совместим с Python 3.9)
+Django>=4.2.0,<5.0.0
+
+# OpenAI для interactor
+openai>=1.0.0
+
+# NumPy для interactor
+numpy>=1.24.0
+
+# Зависимости Django (устанавливаются автоматически при установке Django)
+# asgiref>=3.6.0
+# sqlparse>=0.3.1

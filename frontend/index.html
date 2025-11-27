@@ -956,9 +956,22 @@
                                 <a href="{% url 'home' %}">
                                     <div class="navigation-link"><span>Главная</span></div>
                                 </a>
-                                <a href="{% url 'runcode' %}">
-                                    <div class="navigation-link"><span>Редактор</span></div>
-                                </a>
+                                {% if user.is_authenticated and user.is_candidate %}
+                                    {% if show_interview_link %}
+                                    <a href="{% url 'interview' %}">
+                                        <div class="navigation-link"><span>Интервью</span></div>
+                                    </a>
+                                    {% endif %}
+                                    {% if show_editor_link %}
+                                    <a href="{% url 'runcode' %}">
+                                        <div class="navigation-link"><span>Редактор</span></div>
+                                    </a>
+                                    {% endif %}
+                                {% else %}
+                                    <a href="{% url 'login' %}">
+                                        <div class="navigation-link"><span>Редактор</span></div>
+                                    </a>
+                                {% endif %}
                             </div>
                             <a href="{% url 'home' %}">
                                 <div class="navigation-logo">
@@ -1016,11 +1029,28 @@
                                     <span>Главная</span>
                                 </div>
                             </a>
-                            <a href="{% url 'runcode' %}">
-                                <div class="navigation-mobile-link">
-                                    <span>Редактор</span>
-                                </div>
-                            </a>
+                            {% if user.is_authenticated and user.is_candidate %}
+                                {% if show_interview_link %}
+                                <a href="{% url 'interview' %}">
+                                    <div class="navigation-mobile-link">
+                                        <span>Интервью</span>
+                                    </div>
+                                </a>
+                                {% endif %}
+                                {% if show_editor_link %}
+                                <a href="{% url 'runcode' %}">
+                                    <div class="navigation-mobile-link">
+                                        <span>Редактор</span>
+                                    </div>
+                                </a>
+                                {% endif %}
+                            {% else %}
+                                <a href="{% url 'login' %}">
+                                    <div class="navigation-mobile-link">
+                                        <span>Редактор</span>
+                                    </div>
+                                </a>
+                            {% endif %}
                             {% if user.is_authenticated %}
                                 <div class="navigation-mobile-link" style="color: var(--color-on-surface-secondary, #6c757d);">
                                     <span>{{ user.username }} ({{ user.get_role_display }})</span>
@@ -1885,5 +1915,8 @@
             </footer-wrapper>
         </div>
     </div>
+    {% if user.is_authenticated and user.is_banned %}
+        {% include 'codeapp/ban_modal.html' %}
+    {% endif %}
 </body>
 </html>

@@ -11,16 +11,17 @@ sys.path.insert(0, pyexec_path)
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'pyexec.settings')
 django.setup()
 
-from codeapp.models import Report
+from codeapp.models import Report, User
 
 
 class Resume:
-    def __init__(self, text: str = '', api_key: str = '', base_url: str = '', model_name: str = '', candidate_name: str = ''):
+    def __init__(self, text: str = '', api_key: str = '', base_url: str = '', model_name: str = '', candidate: User = None, hr: User = None):
         self.text = text
         self.api_key = api_key
         self.base_url = base_url
         self.model_name = model_name
-        self.candidate_name = candidate_name
+        self.candidate = candidate  # User объект с ролью CANDIDATE
+        self.hr = hr  # User объект с ролью HR
 
         self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
 
@@ -173,28 +174,47 @@ class Resume:
             "practical_test_summary": practical_summary,
         }
 
-    def save_to_db(self, candidate_name: str = None) -> Report:
+    def save_to_db(self, candidate: User = None, hr: User = None, suspicious_activity: str = "") -> Report:
         """
         Сохраняет суммаризации в базу данных (модель Report).
         
         Args:
-            candidate_name: Имя кандидата (опционально, можно использовать self.candidate_name)
+            candidate: User объект с ролью CANDIDATE (опционально, можно использовать self.candidate)
+            hr: User объект с ролью HR (опционально, можно использовать self.hr)
+            suspicious_activity: Текст о подозрительной активности (опционально)
         
         Returns:
-            Созданный или обновленный объект Report
+            Созданный объект Report
+        
+        Raises:
+            ValueError: Если не указаны candidate или hr
         """
         summaries = self.summary()
         
-        name = candidate_name or self.candidate_name or ""
+        candidate_user = candidate or self.candidate
+        hr_user = hr or self.hr
+        
+        if not candidate_user:
+            raise ValueError("Необходимо указать candidate (User с ролью CANDIDATE)")
+        if not hr_user:
+            raise ValueError("Необходимо указать hr (User с ролью HR)")
+        
+        if candidate_user.role != 'CANDIDATE':
+            raise ValueError(f"User {candidate_user.username} должен иметь роль CANDIDATE, а не {candidate_user.role}")
+        if hr_user.role != 'HR':
+            raise ValueError(f"User {hr_user.username} должен иметь роль HR, а не {hr_user.role}")
         
         report = Report.objects.create(
+            candidate=candidate_user,
+            hr=hr_user,
             hard_skills_summary=summaries["hard_skills_summary"],
             theoretical_test_summary=summaries["theoretical_test_summary"],
             practical_test_summary=summaries["practical_test_summary"],
-            candidate_name=name,
+            suspicious_activity_summary=suspicious_activity or "",
         )
         
         print(f"\nРапорт успешно сохранен в БД (ID: {report.id})")
+        print(f"Кандидат: {candidate_user.username} → HR: {hr_user.username}")
         return report
 
     def get_full_summary(self) -> str:
@@ -213,24 +233,42 @@ class Resume:
 
 
 if __name__ == "__main__":
+    # Пример использования (требует наличия пользователей в БД)
+    # Для работы нужно создать User объекты с ролями CANDIDATE и HR
+    
+    # Пример получения пользователей из БД:
+    # candidate = User.objects.filter(role='CANDIDATE').first()
+    # hr = User.objects.filter(role='HR').first()
+    
+    # Если пользователей нет, создайте их через Django admin или shell
+    
+    print("Пример использования класса Resume:")
+    print("=" * 60)
+    print("Для сохранения в БД необходимо указать candidate и hr (User объекты)")
+    print("\nПример кода:")
+    print("""
+    from codeapp.models import User
+    
+    candidate = User.objects.get(username='candidate_username')
+    hr = User.objects.get(username='hr_username')
+    
     obj = Resume(
         api_key="sk-EntOXD173KXh0i-jb0esww",
         base_url="https://llm.t1v.scibox.tech/v1",
         model_name="qwen3-coder-30b-a3b-instruct-fp8",
-        candidate_name="Иван Иванов"
+        candidate=candidate,
+        hr=hr
     )
     
     obj.push_hard("знаю ООП, Python, Django, PostgreSQL")
     obj.push_hard("опыт работы с REST API, Docker")
     obj.push_theoretical("Динамическое программирование - это метод решения задач путем разбиения на подзадачи")
-    obj.push_practical("def fibonacci(n):\n    if n <= 1:\n        return n\n    return fibonacci(n-1) + fibonacci(n-2)")
+    obj.push_practical("def fibonacci(n):\\n    if n <= 1:\\n        return n\\n    return fibonacci(n-1) + fibonacci(n-2)")
     
     summaries = obj.summary()
     
     report = obj.save_to_db()
     
     full_text = obj.get_full_summary()
-    print("\n" + "=" * 60)
-    print("ПОЛНЫЙ ТЕКСТ РАПОРТА:")
-    print("=" * 60)
     print(full_text)
+    """)

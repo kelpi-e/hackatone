@@ -1,0 +1,1093 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <title>CodeSphere - Интервью</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta charset="utf-8" />
+
+    <style data-tag="reset-style-sheet">
+      html { line-height: 1.15; overflow-y: auto;}body { margin: 0; overflow-y: auto;}* { box-sizing: border-box; border-width: 0; border-style: solid; -webkit-font-smoothing: antialiased;}p,li,ul,pre,div,h1,h2,h3,h4,h5,h6,figure,blockquote,figcaption { margin: 0; padding: 0;}button { background-color: transparent;}button,input,optgroup,select,textarea { font-family: inherit; font-size: 100%; line-height: 1.15; margin: 0;}button,select { text-transform: none;}button,[type="button"],[type="reset"],[type="submit"] { -webkit-appearance: button; color: inherit;}button::-moz-focus-inner,[type="button"]::-moz-focus-inner,[type="reset"]::-moz-focus-inner,[type="submit"]::-moz-focus-inner { border-style: none; padding: 0;}button:-moz-focus,[type="button"]:-moz-focus,[type="reset"]:-moz-focus,[type="submit"]:-moz-focus { outline: 1px dotted ButtonText;}a { color: inherit; text-decoration: inherit;}pre { white-space: normal;}input { padding: 2px 4px;}img { display: block;}details { display: block; margin: 0; padding: 0;}summary::-webkit-details-marker { display: none;}html { scroll-behavior: smooth }
+    </style>
+    <style data-tag="default-style-sheet">
+      html {
+        font-family: "Roboto Mono";
+        font-size: 1rem;
+      }
+      body {
+        font-weight: 400;
+        font-style:normal;
+        text-decoration: undefined;
+        text-transform: undefined;
+        letter-spacing: 0.01em;
+        line-height: 1.6;
+        color: var(--color-on-surface);
+        background: var(--color-surface);
+        fill: var(--color-on-surface);
+      }
+    </style>
+    <link rel="stylesheet" href="https://unpkg.com/animate.css@4.1.1/animate.css" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto+Mono:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;1,100;1,200;1,300;1,400;1,500;1,600;1,700&display=swap" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap" />
+    <link rel="stylesheet" href="https://unpkg.com/@teleporthq/teleport-custom-scripts/dist/style.css" />
+
+    <link rel="stylesheet" href="{% static 'style.css' %}" />
+    <link href="{% static 'index.css' %}" rel="stylesheet" />
+    <link href="{% static 'components/navigation.css' %}" rel="stylesheet" />
+    <link href="{% static 'components/footer.css' %}" rel="stylesheet" />
+
+    <style>
+      /* Основной контейнер интервью */
+      .interview-container {
+        min-height: calc(100vh - 80px);
+        display: flex;
+        flex-direction: column;
+        padding: 0;
+        background: var(--color-surface, #ffffff);
+        position: relative;
+        overflow: visible;
+      }
+
+      /* Контейнер чата - полный экран до завершения */
+      .interview-chat-container {
+        width: 100%;
+        max-width: 900px;
+        margin: 0 auto;
+        min-height: calc(100vh - 80px);
+        display: flex;
+        flex-direction: column;
+        padding: 24px;
+        transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        z-index: 10;
+      }
+
+      /* Заголовок интервью */
+      .interview-header {
+        text-align: center;
+        margin-bottom: 32px;
+        padding-bottom: 24px;
+        border-bottom: 2px solid rgba(0, 0, 0, 0.08);
+      }
+
+      .interview-title {
+        font-size: 32px;
+        font-weight: 600;
+        color: var(--color-on-surface, #212529);
+        margin-bottom: 8px;
+      }
+
+      .interview-subtitle {
+        font-size: 16px;
+        color: var(--color-on-surface-secondary, #6c757d);
+      }
+
+      /* Прогресс бар */
+      .interview-progress {
+        margin-bottom: 24px;
+        padding: 0 8px;
+      }
+
+      .progress-bar-container {
+        width: 100%;
+        height: 8px;
+        background: rgba(0, 0, 0, 0.08);
+        border-radius: 4px;
+        overflow: hidden;
+        position: relative;
+      }
+
+      .progress-bar {
+        height: 100%;
+        background: linear-gradient(90deg, var(--color-primary, #0066ff) 0%, var(--color-accent, #00a3b8) 100%);
+        border-radius: 4px;
+        transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        overflow: hidden;
+      }
+
+      .progress-bar::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+        animation: shimmer 2s infinite;
+      }
+
+      @keyframes shimmer {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(100%); }
+      }
+
+      .progress-text {
+        text-align: center;
+        margin-top: 8px;
+        font-size: 14px;
+        color: var(--color-on-surface-secondary, #6c757d);
+      }
+
+      /* Контейнер чата */
+      .chat-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 16px 0;
+        margin-bottom: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        min-height: 0;
+        max-height: none;
+      }
+
+      .chat-messages::-webkit-scrollbar {
+        width: 8px;
+      }
+
+      .chat-messages::-webkit-scrollbar-track {
+        background: #f8f9fa;
+        border-radius: 10px;
+      }
+
+      .chat-messages::-webkit-scrollbar-thumb {
+        background: #dee2e6;
+        border-radius: 10px;
+        transition: background 0.2s;
+      }
+
+      .chat-messages::-webkit-scrollbar-thumb:hover {
+        background: #adb5bd;
+      }
+
+      /* Сообщения чата */
+      .chat-message {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        animation: fadeInUp 0.4s ease-out;
+      }
+
+      @keyframes fadeInUp {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .message-question {
+        background: linear-gradient(135deg, rgba(0, 102, 255, 0.1) 0%, rgba(0, 163, 184, 0.1) 100%);
+        border-left: 4px solid var(--color-primary, #0066ff);
+        padding: 16px 20px;
+        border-radius: 12px;
+        align-self: flex-start;
+        max-width: 85%;
+        box-shadow: 0 2px 8px rgba(0, 102, 255, 0.1);
+      }
+
+      .message-question-label {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--color-primary, #0066ff);
+        margin-bottom: 6px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .message-question-text {
+        font-size: 15px;
+        color: var(--color-on-surface, #212529);
+        line-height: 1.6;
+      }
+
+      .message-answer {
+        background: var(--color-surface, #ffffff);
+        border: 2px solid rgba(0, 0, 0, 0.08);
+        padding: 16px 20px;
+        border-radius: 12px;
+        align-self: flex-end;
+        max-width: 85%;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+      }
+
+      .message-answer-label {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--color-on-surface-secondary, #6c757d);
+        margin-bottom: 6px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .message-answer-text {
+        font-size: 15px;
+        color: var(--color-on-surface, #212529);
+        line-height: 1.6;
+        white-space: pre-wrap;
+      }
+
+      .message-feedback {
+        font-size: 13px;
+        color: var(--color-on-surface-secondary, #6c757d);
+        font-style: italic;
+        margin-top: 4px;
+        padding-left: 8px;
+        border-left: 2px solid rgba(0, 0, 0, 0.1);
+      }
+
+      /* Поле ввода */
+      .chat-input-container {
+        padding: 16px;
+        background: var(--color-surface, #ffffff);
+        border-top: 1px solid rgba(0, 0, 0, 0.08);
+        border-radius: 0 0 16px 16px;
+      }
+
+      .chat-input-wrapper {
+        display: flex;
+        gap: 12px;
+        align-items: flex-end;
+      }
+
+      .chat-input {
+        flex: 1;
+        min-height: 60px;
+        max-height: 200px;
+        padding: 12px 16px;
+        border: 2px solid rgba(0, 0, 0, 0.1);
+        border-radius: 12px;
+        font-size: 15px;
+        font-family: inherit;
+        resize: none;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        background: var(--color-surface, #ffffff);
+        color: var(--color-on-surface, #212529);
+      }
+
+      .chat-input:focus {
+        outline: none;
+        border-color: var(--color-primary, #0066ff);
+        box-shadow: 0 0 0 3px rgba(0, 102, 255, 0.1);
+      }
+
+      .chat-send-btn {
+        padding: 12px 24px;
+        background: linear-gradient(135deg, var(--color-primary, #0066ff) 0%, var(--color-accent, #00a3b8) 100%);
+        color: var(--color-on-primary, #ffffff);
+        border: none;
+        border-radius: 12px;
+        font-weight: 500;
+        font-size: 15px;
+        cursor: pointer;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        min-width: 100px;
+        height: 60px;
+      }
+
+      .chat-send-btn:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 16px rgba(0, 102, 255, 0.3);
+      }
+
+      .chat-send-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      /* Экран описания навыков */
+      .hard-desc-screen {
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+        padding: 32px;
+        background: var(--color-surface, #ffffff);
+        border-radius: 16px;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+      }
+
+      .hard-desc-title {
+        font-size: 24px;
+        font-weight: 600;
+        color: var(--color-on-surface, #212529);
+        text-align: center;
+      }
+
+      .hard-desc-textarea {
+        width: 100%;
+        min-height: 200px;
+        padding: 16px;
+        border: 2px solid rgba(0, 0, 0, 0.1);
+        border-radius: 12px;
+        font-size: 15px;
+        font-family: inherit;
+        resize: vertical;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        background: var(--color-surface, #ffffff);
+        color: var(--color-on-surface, #212529);
+      }
+
+      .hard-desc-textarea:focus {
+        outline: none;
+        border-color: var(--color-primary, #0066ff);
+        box-shadow: 0 0 0 3px rgba(0, 102, 255, 0.1);
+      }
+
+      .hard-desc-hint {
+        font-size: 14px;
+        color: var(--color-on-surface-secondary, #6c757d);
+        text-align: center;
+      }
+
+      /* Состояние после завершения - плашка справа */
+      .interview-chat-container.completed {
+        width: 380px;
+        max-width: 380px;
+        height: auto;
+        max-height: calc(100vh - 120px);
+        position: fixed;
+        right: 24px;
+        top: 100px;
+        bottom: auto;
+        padding: 20px;
+        background: var(--color-surface, #ffffff);
+        border-radius: 16px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+        z-index: 1000;
+        transform: translateX(0);
+        transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        overflow-y: auto;
+      }
+
+
+      .interview-chat-container.completed .interview-header {
+        display: none;
+      }
+
+      .interview-chat-container.completed .chat-messages {
+        max-height: 400px;
+        margin-bottom: 12px;
+      }
+
+      .interview-chat-container.completed .chat-input-container {
+        display: none;
+      }
+
+      .interview-chat-container.completed .progress-bar-container {
+        display: none;
+      }
+
+      .chat-minimized-header {
+        display: none;
+        padding: 12px 16px;
+        background: linear-gradient(135deg, var(--color-primary, #0066ff) 0%, var(--color-accent, #00a3b8) 100%);
+        color: white;
+        border-radius: 12px 12px 0 0;
+        font-weight: 600;
+        font-size: 14px;
+        margin: -20px -20px 16px -20px;
+        cursor: pointer;
+      }
+
+      .interview-chat-container.completed .chat-minimized-header {
+        display: block;
+      }
+
+      /* Адаптивность */
+      @media (max-width: 1200px) {
+        .interview-chat-container.completed {
+          width: 320px;
+          right: 16px;
+          top: 90px;
+        }
+      }
+
+      @media (max-width: 768px) {
+        .interview-chat-container {
+          padding: 16px;
+          min-height: calc(100vh - 70px);
+        }
+
+        .interview-title {
+          font-size: 24px;
+        }
+
+        .interview-subtitle {
+          font-size: 14px;
+        }
+
+        .message-question,
+        .message-answer {
+          max-width: 90%;
+        }
+
+        .interview-chat-container.completed {
+          width: calc(100% - 32px);
+          right: 16px;
+          left: 16px;
+          top: 80px;
+          max-height: calc(100vh - 100px);
+        }
+
+
+        .chat-input-wrapper {
+          flex-direction: column;
+        }
+
+        .chat-send-btn {
+          width: 100%;
+          height: 48px;
+        }
+      }
+
+      @media (max-width: 480px) {
+        .interview-chat-container {
+          padding: 12px;
+        }
+
+        .interview-title {
+          font-size: 20px;
+        }
+
+        .hard-desc-screen {
+          padding: 20px;
+        }
+
+        .message-question,
+        .message-answer {
+          max-width: 95%;
+          padding: 12px 16px;
+        }
+      }
+
+      /* Индикатор загрузки */
+      .loading-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--color-on-surface-secondary, #6c757d);
+        font-size: 14px;
+      }
+
+      .loading-dots {
+        display: inline-flex;
+        gap: 4px;
+      }
+
+      .loading-dot {
+        width: 6px;
+        height: 6px;
+        background: var(--color-primary, #0066ff);
+        border-radius: 50%;
+        animation: bounce 1.4s infinite ease-in-out both;
+      }
+
+      .loading-dot:nth-child(1) { animation-delay: -0.32s; }
+      .loading-dot:nth-child(2) { animation-delay: -0.16s; }
+
+      @keyframes bounce {
+        0%, 80%, 100% { transform: scale(0); }
+        40% { transform: scale(1); }
+      }
+
+      /* Сообщение об ошибке */
+      .error-message {
+        background: rgba(220, 53, 69, 0.1);
+        color: #dc3545;
+        padding: 12px 16px;
+        border-radius: 8px;
+        border-left: 4px solid #dc3545;
+        margin-bottom: 16px;
+        font-size: 14px;
+      }
+
+      /* Успешное завершение */
+      .completion-message {
+        background: linear-gradient(135deg, rgba(40, 167, 69, 0.1) 0%, rgba(40, 167, 69, 0.05) 100%);
+        border: 2px solid rgba(40, 167, 69, 0.3);
+        padding: 24px;
+        border-radius: 12px;
+        text-align: center;
+        margin-bottom: 16px;
+      }
+
+      .completion-icon {
+        font-size: 48px;
+        margin-bottom: 12px;
+      }
+
+      .completion-text {
+        font-size: 18px;
+        font-weight: 600;
+        color: #28a745;
+        margin-bottom: 8px;
+      }
+
+      .completion-subtext {
+        font-size: 14px;
+        color: var(--color-on-surface-secondary, #6c757d);
+      }
+    </style>
+</head>
+<body>
+    <div class="home-container1">
+        <!-- Navigation -->
+        <navigation-wrapper class="navigation-wrapper">
+            <div class="navigation-container1">
+                <nav id="mainNavigation" class="navigation">
+                    <div class="navigation-container">
+                        <div class="navigation-left">
+                            <a href="{% url 'home' %}">
+                                <div class="navigation-link"><span>Главная</span></div>
+                            </a>
+                            {% if user.is_authenticated and user.is_candidate %}
+                                {% if show_interview_link %}
+                                <a href="{% url 'interview' %}">
+                                    <div class="navigation-link"><span>Интервью</span></div>
+                                </a>
+                                {% endif %}
+                                {% if show_editor_link %}
+                                <a href="{% url 'runcode' %}">
+                                    <div class="navigation-link"><span>Редактор</span></div>
+                                </a>
+                                {% endif %}
+                            {% else %}
+                                <a href="{% url 'runcode' %}">
+                                    <div class="navigation-link"><span>Редактор</span></div>
+                                </a>
+                            {% endif %}
+                        </div>
+                        <a href="{% url 'home' %}">
+                            <div class="navigation-logo">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" class="navigation-logo-icon">
+                                    <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m16 18l6-6l-6-6M8 6l-6 6l6 6"></path>
+                                </svg>
+                                <span class="navigation-logo-text">CodeSphere</span>
+                            </div>
+                        </a>
+                        <div class="navigation-right">
+                            {% if user.is_authenticated %}
+                                <span class="navigation-link" style="color: var(--color-on-surface-secondary, #6c757d); margin-right: 12px;">
+                                    {{ user.username }} ({{ user.get_role_display }})
+                                </span>
+                                <a href="{% url 'logout' %}">
+                                    <div class="navigation-link"><span>Выйти</span></div>
+                                </a>
+                            {% else %}
+                                <a href="{% url 'login' %}">
+                                    <div class="navigation-link"><span>Вход</span></div>
+                                </a>
+                                <a href="{% url 'register' %}">
+                                    <div class="navigation-cta btn btn-primary">
+                                        <span>Регистрация</span>
+                                    </div>
+                                </a>
+                            {% endif %}
+                        </div>
+                        <button id="navToggle" aria-expanded="false" aria-label="Открыть меню навигации" class="navigation-toggle">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+                                <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5h16M4 12h16M4 19h16"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </nav>
+            </div>
+        </navigation-wrapper>
+
+        <!-- Interview Container -->
+        <div class="interview-container">
+            <div class="interview-chat-container" id="chatContainer">
+                <div class="chat-minimized-header" id="minimizedHeader">
+                    💬 История интервью
+                </div>
+
+                <div class="interview-header" id="interview-header">
+                    <h1 class="interview-title">Теоретическое интервью</h1>
+                    <p class="interview-subtitle">Ответьте на вопросы о ваших знаниях алгоритмов и структур данных</p>
+                </div>
+
+                <div class="interview-progress" id="progressContainer">
+                    <div class="progress-bar-container">
+                        <div class="progress-bar" id="progressBar" style="width: 0%"></div>
+                    </div>
+                    <div class="progress-text" id="progressText">Начало интервью</div>
+                </div>
+
+                <div class="chat-messages" id="chatMessages">
+                    <!-- Сообщения будут добавляться динамически -->
+                </div>
+
+                <!-- Экран описания навыков -->
+                <div class="hard-desc-screen" id="hardDescScreen">
+                    <h2 class="hard-desc-title">Опишите ваши технические навыки</h2>
+                    <textarea 
+                        id="hardDescInput" 
+                        class="hard-desc-textarea" 
+                        placeholder="Например: знаю Python, Django, PostgreSQL, опыт работы с REST API, Docker, алгоритмы и структуры данных..."
+                    ></textarea>
+                    <p class="hard-desc-hint">Опишите ваши навыки подробно - это поможет сформировать вопросы для интервью</p>
+                    <button class="chat-send-btn" id="startHardDescBtn">Начать интервью</button>
+                </div>
+
+                <!-- Поле ввода для ответов -->
+                <div class="chat-input-container" id="chatInputContainer" style="display: none;">
+                    <div class="chat-input-wrapper">
+                        <textarea 
+                            id="chatInput" 
+                            class="chat-input" 
+                            placeholder="Введите ваш ответ..."
+                            rows="3"
+                        ></textarea>
+                        <button class="chat-send-btn" id="sendBtn">Отправить</button>
+                    </div>
+                </div>
+
+                <!-- Сообщение об ошибке -->
+                <div class="error-message" id="errorMessage" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+      // Состояние интервью
+      let interviewState = {
+        stage: 'init', // init, hard_desc, theory, finished
+        currentQuestion: null,
+        chatHistory: [],
+        isLoading: false
+      };
+
+      const chatContainer = document.getElementById('chatContainer');
+      const chatMessages = document.getElementById('chatMessages');
+      const chatInput = document.getElementById('chatInput');
+      const sendBtn = document.getElementById('sendBtn');
+      const hardDescScreen = document.getElementById('hardDescScreen');
+      const chatInputContainer = document.getElementById('chatInputContainer');
+      const startHardDescBtn = document.getElementById('startHardDescBtn');
+      const hardDescInput = document.getElementById('hardDescInput');
+      const progressBar = document.getElementById('progressBar');
+      const progressText = document.getElementById('progressText');
+      const errorMessage = document.getElementById('errorMessage');
+      const minimizedHeader = document.getElementById('minimizedHeader');
+
+      // Получить CSRF токен
+      function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+          const cookies = document.cookie.split(';');
+          for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+              cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+              break;
+            }
+          }
+        }
+        return cookieValue;
+      }
+
+      // Функция для отправки AJAX запросов
+      async function interviewAPI(action, data = {}) {
+        const formData = new FormData();
+        formData.append('action', action);
+        const csrftoken = getCookie('csrftoken');
+        if (csrftoken) {
+          formData.append('csrfmiddlewaretoken', csrftoken);
+        } else {
+          console.warn('CSRF token not found!');
+        }
+        
+        for (const [key, value] of Object.entries(data)) {
+          formData.append(key, value);
+        }
+
+        try {
+          const response = await fetch('{% url "interview_api" %}', {
+            method: 'POST',
+            body: formData,
+            headers: {
+              'X-CSRFToken': csrftoken || ''
+            }
+          });
+
+          if (!response.ok) {
+            // Пытаемся получить JSON с ошибкой
+            let errorData;
+            try {
+              errorData = await response.json();
+            } catch (e) {
+              errorData = { error: `HTTP error! status: ${response.status}` };
+            }
+            console.error('API Response Error:', errorData);
+            return errorData;
+          }
+
+          const result = await response.json();
+          console.log('API Response:', result);
+          return result;
+        } catch (error) {
+          console.error('API Error:', error);
+          return {
+            success: false,
+            error: `Ошибка соединения с сервером: ${error.message}`,
+            message: 'Проверьте подключение к интернету и попробуйте еще раз.'
+          };
+        }
+      }
+
+      // Показать ошибку
+      function showError(message) {
+        if (!errorMessage) {
+          console.error('Error message element not found!');
+          alert(message); // Fallback на alert
+          return;
+        }
+        errorMessage.textContent = message;
+        errorMessage.style.display = 'block';
+        // Прокручиваем к ошибке
+        errorMessage.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        setTimeout(() => {
+          if (errorMessage) {
+            errorMessage.style.display = 'none';
+          }
+        }, 8000); // Увеличиваем время показа до 8 секунд
+      }
+
+      // Добавить сообщение в чат
+      function addMessage(type, text, feedback = null) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'chat-message';
+
+        if (type === 'question') {
+          messageDiv.innerHTML = `
+            <div class="message-question">
+              <div class="message-question-label">💬 Вопрос</div>
+              <div class="message-question-text">${escapeHtml(text)}</div>
+            </div>
+          `;
+        } else if (type === 'answer') {
+          let feedbackHtml = '';
+          if (feedback) {
+            feedbackHtml = `<div class="message-feedback">${escapeHtml(feedback)}</div>`;
+          }
+          messageDiv.innerHTML = `
+            <div class="message-answer">
+              <div class="message-answer-label">✍️ Ваш ответ</div>
+              <div class="message-answer-text">${escapeHtml(text)}</div>
+              ${feedbackHtml}
+            </div>
+          `;
+        }
+
+        chatMessages.appendChild(messageDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      }
+
+      // Экранирование HTML
+      function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+      }
+
+      // Обновить прогресс
+      function updateProgress(current, total) {
+        const percentage = total > 0 ? (current / total) * 100 : 0;
+        progressBar.style.width = `${percentage}%`;
+        
+        if (total > 0) {
+          progressText.textContent = `Вопрос ${current} из ${total}`;
+        } else {
+          progressText.textContent = 'Начало интервью';
+        }
+      }
+
+      // Начать описание навыков
+      async function startHardDesc() {
+        const hardDesc = hardDescInput.value.trim();
+        
+        if (!hardDesc || hardDesc.length < 10) {
+          showError('Пожалуйста, опишите ваши навыки более подробно (минимум 10 символов)');
+          return;
+        }
+
+        setLoading(true);
+        try {
+          const result = await interviewAPI('start_hard_desc', { hard_desc: hardDesc });
+
+          if (!result) {
+            showError('Не удалось получить ответ от сервера. Проверьте подключение к интернету.');
+            setLoading(false);
+            return;
+          }
+
+          // Проверяем, был ли пользователь забанен
+          if (result.banned) {
+            // Перезагружаем страницу, чтобы показать модальное окно бана
+            window.location.reload();
+            return;
+          }
+
+          if (result.success) {
+            // Скрываем экран описания навыков
+            hardDescScreen.style.display = 'none';
+            chatInputContainer.style.display = 'block';
+            
+            // Запускаем интервью
+            await startInterview();
+          } else {
+            // Показываем ошибку
+            const errorMsg = result.error || result.message || 'Ошибка при сохранении описания навыков';
+            showError(errorMsg);
+            console.error('API Error:', result);
+          }
+        } catch (error) {
+          console.error('Error in startHardDesc:', error);
+          showError('Произошла ошибка при отправке данных. Попробуйте еще раз.');
+        } finally {
+          setLoading(false);
+        }
+      }
+
+      // Запустить интервью
+      async function startInterview() {
+        setLoading(true);
+        try {
+          const result = await interviewAPI('start_interview');
+
+          if (!result) {
+            showError('Не удалось получить ответ от сервера. Проверьте подключение к интернету.');
+            setLoading(false);
+            return;
+          }
+
+          if (result.success) {
+            interviewState.stage = 'theory';
+            await getNextQuestion();
+          } else {
+            const errorMsg = result.error || result.message || 'Ошибка при запуске интервью';
+            showError(errorMsg);
+            console.error('API Error:', result);
+          }
+        } catch (error) {
+          console.error('Error in startInterview:', error);
+          showError('Произошла ошибка при запуске интервью. Попробуйте еще раз.');
+        } finally {
+          setLoading(false);
+        }
+      }
+
+      // Получить следующий вопрос
+      async function getNextQuestion() {
+        setLoading(true);
+        const result = await interviewAPI('get_question');
+
+        if (result) {
+          if (result.finished) {
+            // Интервью завершено
+            completeInterview();
+          } else if (result.question) {
+            interviewState.currentQuestion = result.question;
+            
+            // Если это наводящий вопрос, добавляем специальную метку
+            const questionText = result.is_hint ? 
+              `💡 Наводящий вопрос:\n${result.question}` : 
+              result.question;
+            
+            addMessage('question', questionText);
+            
+            // Обновляем прогресс
+            const totalQuestions = result.total_questions || 3;
+            const currentProgress = result.current_idx || 1;
+            updateProgress(currentProgress, totalQuestions);
+          }
+        }
+
+        setLoading(false);
+      }
+
+      // Отправить ответ
+      async function submitAnswer() {
+        const answer = chatInput.value.trim();
+        
+        if (!answer || answer.length < 3) {
+          showError('Пожалуйста, дайте более развернутый ответ (минимум 3 символа)');
+          return;
+        }
+
+        setLoading(true);
+        const result = await interviewAPI('submit_answer', { answer: answer });
+
+        if (result && result.success) {
+          // Добавляем ответ в чат
+          const feedback = result.last_qa?.comment || null;
+          addMessage('answer', answer, feedback);
+          
+          // Добавляем в историю
+          if (result.last_qa) {
+            interviewState.chatHistory.push(result.last_qa);
+          }
+          
+          // Очищаем поле ввода
+          chatInput.value = '';
+
+          // Проверяем, завершена ли теория
+          if (result.theory_completed) {
+            completeInterview();
+          } else {
+            // Получаем следующий вопрос (может быть наводящий или следующий основной)
+            setTimeout(() => {
+              getNextQuestion();
+            }, 1000);
+          }
+        } else if (result) {
+          showError(result.message || 'Ошибка при отправке ответа');
+        }
+
+        setLoading(false);
+      }
+
+      // Завершить интервью
+      function completeInterview() {
+        // Добавляем сообщение о завершении
+        const completionDiv = document.createElement('div');
+        completionDiv.className = 'completion-message';
+        completionDiv.innerHTML = `
+          <div class="completion-icon">✅</div>
+          <div class="completion-text">Теоретическая часть завершена!</div>
+          <div class="completion-subtext">Перенаправляем вас на следующий этап...</div>
+        `;
+        chatMessages.appendChild(completionDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+
+        // Обновляем прогресс
+        progressBar.style.width = '100%';
+        progressText.textContent = 'Интервью завершено';
+
+        // Предзагрузка страницы редактора для оптимизации
+        const link = document.createElement('link');
+        link.rel = 'prefetch';
+        link.href = '{% url "runcode" %}?interview_completed=1';
+        document.head.appendChild(link);
+
+        // Скрываем поле ввода
+        const inputContainer = document.getElementById('chatInputContainer');
+        if (inputContainer) inputContainer.style.display = 'none';
+
+        // Перенаправляем через 3 секунды
+        setTimeout(() => {
+          window.location.href = '{% url "runcode" %}?interview_completed=1';
+        }, 3000);
+      }
+
+
+      // Установить состояние загрузки
+      function setLoading(loading) {
+        interviewState.isLoading = loading;
+        sendBtn.disabled = loading;
+        startHardDescBtn.disabled = loading;
+        
+        if (loading) {
+          sendBtn.innerHTML = '<span class="loading-indicator"><span class="loading-dots"><span class="loading-dot"></span><span class="loading-dot"></span><span class="loading-dot"></span></span> Отправка...</span>';
+          startHardDescBtn.innerHTML = '<span class="loading-indicator"><span class="loading-dots"><span class="loading-dot"></span><span class="loading-dot"></span><span class="loading-dot"></span></span> Загрузка...</span>';
+        } else {
+          sendBtn.innerHTML = 'Отправить';
+          startHardDescBtn.innerHTML = 'Начать интервью';
+        }
+      }
+
+      // Обработчики событий
+      if (startHardDescBtn) {
+        startHardDescBtn.addEventListener('click', function(e) {
+          e.preventDefault();
+          console.log('Start button clicked');
+          startHardDesc();
+        });
+      } else {
+        console.error('Start button not found!');
+      }
+
+      if (sendBtn) {
+        sendBtn.addEventListener('click', submitAnswer);
+      } else {
+        console.error('Send button not found!');
+      }
+
+      chatInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          if (!interviewState.isLoading) {
+            submitAnswer();
+          }
+        }
+      });
+
+      // Автоматическое изменение размера textarea
+      chatInput.addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = Math.min(this.scrollHeight, 200) + 'px';
+      });
+
+      hardDescInput.addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = Math.min(this.scrollHeight, 300) + 'px';
+      });
+
+      // Загрузить историю чата
+      async function loadChatHistory() {
+        const result = await interviewAPI('get_history');
+        if (result && result.chat_history) {
+          interviewState.chatHistory = result.chat_history;
+          
+          // Восстанавливаем сообщения из истории
+          result.chat_history.forEach((item) => {
+            if (item.type === 'theory_qa') {
+              addMessage('question', item.question);
+              addMessage('answer', item.answer, item.comment || null);
+            }
+          });
+          
+          // Обновляем прогресс
+          const answeredQuestions = result.chat_history.filter(m => m.type === 'theory_qa' && !m.after_hint).length;
+          updateProgress(answeredQuestions, 3);
+          
+          // Если есть текущий вопрос, показываем его
+          if (result.stage === 'theory') {
+            await getNextQuestion();
+          }
+        }
+      }
+
+      // Инициализация
+      document.addEventListener('DOMContentLoaded', function() {
+        console.log('DOM loaded, initializing interview page...');
+        console.log('Elements:', {
+          startHardDescBtn: !!startHardDescBtn,
+          hardDescInput: !!hardDescInput,
+          errorMessage: !!errorMessage,
+          chatInputContainer: !!chatInputContainer
+        });
+
+        // Если интервью уже начато, загружаем историю
+        {% if interview_started %}
+          console.log('Interview already started, loading history...');
+          if (hardDescScreen) hardDescScreen.style.display = 'none';
+          if (chatInputContainer) chatInputContainer.style.display = 'block';
+          loadChatHistory();
+        {% else %}
+          console.log('Interview not started yet');
+        {% endif %}
+      });
+    </script>
+
+    <!-- Модальное окно бана -->
+    {% include 'codeapp/ban_modal.html' %}
+</body>
+</html>
+
