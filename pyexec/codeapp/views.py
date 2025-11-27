@@ -88,9 +88,10 @@ def get_task_text(task_file):
 def check_suspicious_code(code_text):
     found = []
     for i, ch in enumerate(code_text):
+        # Игнорируем стандартные ASCII и русские буквы
         if ch in SUSPICIOUS_CHARS:
             found.append((i+1, SUSPICIOUS_CHARS[ch]))
-        elif ord(ch) > 127 and ch not in SUSPICIOUS_CHARS:
+        elif ord(ch) > 127 and not ('А' <= ch <= 'я' or ch in 'Ёё'):
             found.append((i+1, f"UNEXPECTED CHAR {unicodedata.name(ch, '?')}"))
     return found
 
