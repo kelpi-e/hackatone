@@ -309,6 +309,26 @@ class InterviewSession(models.Model):
         help_text="Сгенерированное резюме о навыках кандидата для ранжирования задач"
     )
     
+    # Античит данные
+    suspicious_activities = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name="Подозрительная активность",
+        help_text="Список подозрительных действий: переключение вкладок, копирование, долгие паузы"
+    )
+    
+    tab_switches = models.IntegerField(
+        default=0,
+        verbose_name="Переключения вкладок",
+        help_text="Количество переключений на другие вкладки"
+    )
+    
+    copy_paste_count = models.IntegerField(
+        default=0,
+        verbose_name="Копирование/вставка",
+        help_text="Количество операций копирования/вставки"
+    )
+    
     theory_completed = models.BooleanField(
         default=False,
         verbose_name="Теория завершена",

@@ -1064,6 +1064,161 @@
         }
       }
 
+      // ==================== АНТИЧИТ СИСТЕМА ====================
+      let antiCheat = {
+        tabSwitches: 0,
+        copyPasteCount: 0,
+        lastActivityTime: Date.now(),
+        longPauseThreshold: 300000, // 5 минут (300 секунд)
+        warningShown: false
+      };
+
+      // Отправка подозрительной активности на сервер
+      async function reportSuspicious(type, details = '') {
+        try {
+          await interviewAPI('report_suspicious', {
+            type: type,
+            details: details,
+            timestamp: new Date().toISOString()
+          });
+        } catch (e) {
+          console.error('Failed to report suspicious activity:', e);
+        }
+      }
+
+      // Отслеживание переключения вкладок
+      document.addEventListener('visibilitychange', function() {
+        if (document.hidden) {
+          antiCheat.tabSwitches++;
+          reportSuspicious('tab_switch', `Переключение на другую вкладку (${antiCheat.tabSwitches} раз)`);
+          
+          // Показываем предупреждение при возврате
+          antiCheat.warningShown = true;
+        } else if (antiCheat.warningShown) {
+          // Показываем предупреждение
+          showAntiCheatWarning('Обнаружено переключение вкладок. Это фиксируется в отчёте.');
+          antiCheat.warningShown = false;
+        }
+      });
+
+      // Отслеживание потери фокуса окна
+      window.addEventListener('blur', function() {
+        antiCheat.tabSwitches++;
+        reportSuspicious('window_blur', 'Потеря фокуса окна');
+      });
+
+      // Отслеживание копирования
+      document.addEventListener('copy', function(e) {
+        antiCheat.copyPasteCount++;
+        const selectedText = window.getSelection().toString().substring(0, 100);
+        reportSuspicious('copy', `Копирование: "${selectedText}..."`);
+      });
+
+      // Отслеживание вставки
+      document.addEventListener('paste', function(e) {
+        antiCheat.copyPasteCount++;
+        const pastedText = (e.clipboardData || window.clipboardData).getData('text').substring(0, 100);
+        reportSuspicious('paste', `Вставка: "${pastedText}..."`);
+        showAntiCheatWarning('Обнаружена вставка текста. Это фиксируется в отчёте.');
+      });
+
+      // Отслеживание долгих пауз
+      setInterval(function() {
+        const now = Date.now();
+        const pauseDuration = now - antiCheat.lastActivityTime;
+        
+        if (pauseDuration > antiCheat.longPauseThreshold && interviewState.stage === 'theory') {
+          reportSuspicious('long_pause', `Долгая пауза: ${Math.round(pauseDuration / 1000)} секунд`);
+          antiCheat.lastActivityTime = now; // Сбрасываем, чтобы не спамить
+        }
+      }, 30000); // Проверяем каждые 30 секунд
+
+      // Обновляем время последней активности
+      ['keydown', 'mousemove', 'click', 'scroll'].forEach(function(eventType) {
+        document.addEventListener(eventType, function() {
+          antiCheat.lastActivityTime = Date.now();
+        });
+      });
+
+      // Блокировка правой кнопки мыши (опционально)
+      document.addEventListener('contextmenu', function(e) {
+        if (interviewState.stage === 'theory') {
+          e.preventDefault();
+          reportSuspicious('right_click', 'Попытка открыть контекстное меню');
+          showAntiCheatWarning('Контекстное меню заблокировано во время интервью.');
+          return false;
+        }
+      });
+
+      // Блокировка DevTools (F12, Ctrl+Shift+I)
+      document.addEventListener('keydown', function(e) {
+        if (interviewState.stage === 'theory') {
+          if (e.key === 'F12' || 
+              (e.ctrlKey && e.shiftKey && e.key === 'I') ||
+              (e.ctrlKey && e.shiftKey && e.key === 'J') ||
+              (e.ctrlKey && e.key === 'U')) {
+            e.preventDefault();
+            reportSuspicious('devtools', 'Попытка открыть DevTools');
+            showAntiCheatWarning('Инструменты разработчика заблокированы во время интервью.');
+            return false;
+          }
+        }
+      });
+
+      // Показать предупреждение античита
+      function showAntiCheatWarning(message) {
+        const warningDiv = document.createElement('div');
+        warningDiv.style.cssText = `
+          position: fixed;
+          top: 20px;
+          right: 20px;
+          background: linear-gradient(135deg, #ff6b6b, #ee5a5a);
+          color: white;
+          padding: 16px 24px;
+          border-radius: 12px;
+          box-shadow: 0 4px 20px rgba(255, 107, 107, 0.4);
+          z-index: 10000;
+          font-size: 14px;
+          font-weight: 500;
+          max-width: 350px;
+          animation: slideIn 0.3s ease-out;
+        `;
+        warningDiv.innerHTML = `
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <span style="font-size: 24px;">⚠️</span>
+            <div>
+              <div style="font-weight: 600; margin-bottom: 4px;">Внимание!</div>
+              <div style="opacity: 0.9;">${message}</div>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(warningDiv);
+
+        // Добавляем анимацию
+        const style = document.createElement('style');
+        style.textContent = `
+          @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+          }
+          @keyframes slideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+          }
+        `;
+        document.head.appendChild(style);
+
+        // Убираем через 5 секунд
+        setTimeout(function() {
+          warningDiv.style.animation = 'slideOut 0.3s ease-in forwards';
+          setTimeout(function() {
+            warningDiv.remove();
+          }, 300);
+        }, 5000);
+      }
+
+      // ==================== КОНЕЦ АНТИЧИТ СИСТЕМЫ ====================
+
       // Инициализация
       document.addEventListener('DOMContentLoaded', function() {
         console.log('DOM loaded, initializing interview page...');
@@ -1083,6 +1238,9 @@
         {% else %}
           console.log('Interview not started yet');
         {% endif %}
+
+        // Инициализация античита
+        console.log('Anti-cheat system initialized');
       });
     </script>
 

@@ -521,6 +521,45 @@ def interview_api(request):
                 'details': traceback.format_exc()
             }, status=500)
     
+    elif action == 'report_suspicious':
+        # Отчёт о подозрительной активности (античит)
+        try:
+            activity_type = request.POST.get('type', '')  # tab_switch, copy, paste, long_pause
+            details = request.POST.get('details', '')
+            timestamp = request.POST.get('timestamp', '')
+            
+            # Загружаем текущий список
+            suspicious = interview_session.suspicious_activities or []
+            
+            # Добавляем новую запись
+            suspicious.append({
+                'type': activity_type,
+                'details': details,
+                'timestamp': timestamp or timezone.now().isoformat(),
+                'question_idx': interview_session.current_question_idx
+            })
+            
+            interview_session.suspicious_activities = suspicious
+            
+            # Обновляем счётчики
+            if activity_type == 'tab_switch':
+                interview_session.tab_switches = (interview_session.tab_switches or 0) + 1
+            elif activity_type in ('copy', 'paste'):
+                interview_session.copy_paste_count = (interview_session.copy_paste_count or 0) + 1
+            
+            interview_session.save()
+            
+            return JsonResponse({
+                'success': True,
+                'tab_switches': interview_session.tab_switches,
+                'copy_paste_count': interview_session.copy_paste_count
+            })
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'error': str(e)
+            }, status=500)
+    
     if not action:
         return JsonResponse({'error': 'Не указано действие (action)'}, status=400)
     
