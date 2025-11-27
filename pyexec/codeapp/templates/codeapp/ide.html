@@ -2399,6 +2399,131 @@
       });
     </script>
 
+    {% if user.is_authenticated and user.is_candidate and theory_completed %}
+    <script>
+      // ================= АНТИЧИТ ДЛЯ РЕДАКТОРА =================
+      const isCandidateUser = true;
+      const canReportSuspicious = true;
+
+      function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+          const cookies = document.cookie.split(';');
+          for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+              cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+              break;
+            }
+          }
+        }
+        return cookieValue;
+      }
+
+      async function reportSuspiciousActivity(type, details = '') {
+        if (!canReportSuspicious) return;
+        const csrftoken = getCookie('csrftoken') || '{{ csrf_token }}';
+        const formData = new FormData();
+        formData.append('action', 'report_suspicious');
+        formData.append('type', type);
+        formData.append('details', details);
+        formData.append('timestamp', new Date().toISOString());
+
+        try {
+          await fetch('{% url "interview_api" %}', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrftoken },
+            body: formData
+          });
+        } catch (err) {
+          console.warn('reportSuspiciousActivity error', err);
+        }
+      }
+
+      function showAntiCheatToast(message) {
+        const toast = document.createElement('div');
+        toast.style.cssText = `
+          position: fixed;
+          bottom: 20px;
+          right: 20px;
+          background: linear-gradient(135deg, #ff6b6b, #ff9a76);
+          color: #fff;
+          padding: 14px 18px;
+          border-radius: 12px;
+          box-shadow: 0 8px 24px rgba(255, 107, 107, 0.4);
+          font-size: 13px;
+          font-weight: 500;
+          z-index: 2000;
+          max-width: 320px;
+        `;
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        setTimeout(() => {
+          toast.style.opacity = '0';
+          toast.style.transition = 'opacity 0.3s';
+          setTimeout(() => toast.remove(), 300);
+        }, 4000);
+      }
+
+      // Tab switch detection
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+          reportSuspiciousActivity('tab_switch_code', 'Переключение вкладки во время решения задачи');
+        }
+      });
+      window.addEventListener('blur', () => {
+        reportSuspiciousActivity('window_blur_code', 'Окно потеряло фокус во время решения задачи');
+      });
+
+      // Clipboard monitoring in CodeMirror
+      if (window.editor) {
+        window.editor.on('beforeChange', (cm, change) => {
+          if (change.origin === 'paste') {
+            const pastedText = change.text.join('\n');
+            const trimmed = pastedText.trim();
+            if (!trimmed) {
+              return;
+            }
+            const currentCode = cm.getValue();
+            const isOwnCode = currentCode.includes(trimmed);
+
+            const minLength = 30; // ignore very short snippets
+            if (!isOwnCode && trimmed.replace(/\s+/g, '').length >= minLength) {
+              reportSuspiciousActivity(
+                'code_paste_external',
+                `Подозрительная вставка (первые 80 символов): "${trimmed.substring(0, 80)}..."`
+              );
+              showAntiCheatToast('Обнаружена вставка внешнего кода. Такие действия фиксируются.');
+            }
+          }
+        });
+      } else {
+        document.addEventListener('DOMContentLoaded', () => {
+          if (window.editor) {
+            window.editor.on('beforeChange', (cm, change) => {
+              if (change.origin === 'paste') {
+                const pastedText = change.text.join('\n');
+                const trimmed = pastedText.trim();
+                if (!trimmed) return;
+                const currentCode = cm.getValue();
+                const isOwnCode = currentCode.includes(trimmed);
+                const minLength = 30;
+                if (!isOwnCode && trimmed.replace(/\s+/g, '').length >= minLength) {
+                  reportSuspiciousActivity(
+                    'code_paste_external',
+                    `Подозрительная вставка (первые 80 символов): "${trimmed.substring(0, 80)}..."`
+                  );
+                  showAntiCheatToast('Обнаружена вставка внешнего кода. Такие действия фиксируются.');
+                }
+              }
+            });
+          }
+        });
+      }
+      // ================= КОНЕЦ АНТИЧИТ =================
+    </script>
+    {% endif %}
+
     <!-- Модальное окно бана -->
     {% include 'codeapp/ban_modal.html' %}
 </body>
