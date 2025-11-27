@@ -425,6 +425,189 @@ def interview_api(request):
     return JsonResponse({'error': f'Неизвестное действие: {action}'}, status=400)
 
 @login_required
+@require_http_methods(["POST"])
+@csrf_exempt
+def code_chat_api(request):
+    """
+    API endpoint для чата с интервьюером во время написания кода.
+    Анализирует код и возвращает подсказки/наводящие вопросы.
+    """
+    if not request.user.is_candidate():
+        return JsonResponse({'error': 'Доступно только для кандидатов'}, status=403)
+    
+    try:
+        from interactor import Interactor
+    except ImportError as e:
+        return JsonResponse({'error': f'Ошибка импорта Interactor: {e}'}, status=500)
+    
+    from openai import OpenAI
+    
+    # Получаем сессию интервью
+    try:
+        interview_session = InterviewSession.objects.get(user=request.user)
+        if not interview_session.theory_completed:
+            return JsonResponse({'error': 'Сначала завершите теоретическую часть интервью'}, status=400)
+    except InterviewSession.DoesNotExist:
+        return JsonResponse({'error': 'Сессия интервью не найдена'}, status=404)
+    
+    action = request.POST.get('action')
+    message = request.POST.get('message', '').strip()
+    code = request.POST.get('code', '')
+    task_text = request.POST.get('task_text', '')
+    test_results = request.POST.get('test_results', '')
+    language = request.POST.get('language', 'Python')
+    
+    api_key = "sk-EntOXD173KXh0i-jb0esww"
+    client = OpenAI(api_key=api_key, base_url="https://llm.t1v.scibox.tech/v1")
+    
+    if action == 'analyze_code':
+        # Анализируем код после запуска тестов и даём обратную связь
+        system_prompt = (
+            "/no_think Ты опытный технический интервьюер. "
+            "Кандидат решает задачу по программированию. "
+            "Проанализируй его код и результаты тестов.\n\n"
+            "Твоя задача:\n"
+            "1. Оценить качество кода (читаемость, структура, эффективность)\n"
+            "2. Если тесты не прошли - дать НАВОДЯЩИЙ вопрос (не ответ!), который поможет найти ошибку\n"
+            "3. Если тесты прошли - похвалить и предложить улучшения (если есть)\n"
+            "4. Быть кратким и конструктивным\n\n"
+            "Верни JSON:\n"
+            "{\n"
+            '  \"feedback\": \"краткий отзыв о коде на русском\",\n'
+            '  \"hint\": \"наводящий вопрос или подсказка (если нужна)\",\n'
+            '  \"code_quality\": \"good\" | \"needs_improvement\" | \"poor\",\n'
+            '  \"encouragement\": \"мотивирующее сообщение\"\n'
+            "}"
+        )
+        
+        user_content = (
+            f"Язык: {language}\n\n"
+            f"Задача:\n{task_text}\n\n"
+            f"Код кандидата:\n```{language.lower()}\n{code}\n```\n\n"
+            f"Результаты тестов:\n{test_results}\n\n"
+            "Проанализируй и дай обратную связь."
+        )
+        
+        try:
+            resp = client.chat.completions.create(
+                model="qwen3-coder-30b-a3b-instruct-fp8",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_content},
+                ],
+                stream=False,
+                response_format={"type": "json_object"},
+                temperature=0.7
+            )
+            
+            data = json.loads(resp.choices[0].message.content)
+            
+            # Сохраняем в историю чата
+            chat_entry = {
+                "type": "code_feedback",
+                "code_snippet": code[:500] + "..." if len(code) > 500 else code,
+                "test_results": test_results,
+                "feedback": data.get("feedback", ""),
+                "hint": data.get("hint", ""),
+                "code_quality": data.get("code_quality", ""),
+                "timestamp": timezone.now().isoformat()
+            }
+            
+            chat_history = interview_session.chat_history or []
+            chat_history.append(chat_entry)
+            interview_session.chat_history = chat_history
+            interview_session.save()
+            
+            return JsonResponse({
+                'success': True,
+                'feedback': data.get("feedback", ""),
+                'hint': data.get("hint", ""),
+                'code_quality': data.get("code_quality", "needs_improvement"),
+                'encouragement': data.get("encouragement", "Продолжайте работать!")
+            })
+            
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'error': f'Ошибка анализа: {str(e)}'
+            }, status=500)
+    
+    elif action == 'send_message':
+        # Кандидат отправляет сообщение/вопрос
+        if not message:
+            return JsonResponse({'error': 'Сообщение не может быть пустым'}, status=400)
+        
+        # Получаем контекст из истории
+        chat_history = interview_session.chat_history or []
+        recent_context = chat_history[-5:] if chat_history else []
+        
+        system_prompt = (
+            "/no_think Ты технический интервьюер, который помогает кандидату решить задачу. "
+            "Отвечай на вопросы кандидата, но НЕ давай прямых ответов на задачу. "
+            "Задавай наводящие вопросы, помогай разобраться в проблеме. "
+            "Будь кратким (1-3 предложения), вежливым и профессиональным. "
+            "Отвечай на русском языке."
+        )
+        
+        context_str = ""
+        for entry in recent_context:
+            if entry.get("type") == "code_feedback":
+                context_str += f"[Предыдущий отзыв]: {entry.get('feedback', '')}\n"
+            elif entry.get("type") == "chat_message":
+                context_str += f"[{entry.get('role', 'user')}]: {entry.get('content', '')}\n"
+        
+        user_content = (
+            f"Задача:\n{task_text}\n\n"
+            f"Текущий код:\n```{language.lower()}\n{code[:1000]}\n```\n\n"
+            f"Контекст диалога:\n{context_str}\n\n"
+            f"Вопрос кандидата: {message}\n\n"
+            "Ответь кратко и помоги разобраться."
+        )
+        
+        try:
+            resp = client.chat.completions.create(
+                model="qwen3-coder-30b-a3b-instruct-fp8",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_content},
+                ],
+                stream=False,
+                temperature=0.7
+            )
+            
+            response_message = resp.choices[0].message.content.strip()
+            
+            # Сохраняем в историю
+            chat_history.append({
+                "type": "chat_message",
+                "role": "candidate",
+                "content": message,
+                "timestamp": timezone.now().isoformat()
+            })
+            chat_history.append({
+                "type": "chat_message",
+                "role": "interviewer",
+                "content": response_message,
+                "timestamp": timezone.now().isoformat()
+            })
+            interview_session.chat_history = chat_history
+            interview_session.save()
+            
+            return JsonResponse({
+                'success': True,
+                'message': response_message
+            })
+            
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'error': f'Ошибка: {str(e)}'
+            }, status=500)
+    
+    return JsonResponse({'error': f'Неизвестное действие: {action}'}, status=400)
+
+
+@login_required
 def index(request):
     # Для кандидатов проверяем, прошли ли они теоретическую часть
     if request.user.is_candidate():
@@ -541,7 +724,73 @@ def run_code(request):
             with open(ANALYSIS_LOG, "a", encoding="utf-8") as log:
                 log.write(f"Ошибка g++:\n{compile_error}\n\n")
 
-    # === Запуск тестов (только Python и только если нет ошибок компиляции) ===
+
+    # === Запуск тестов для C++ ===
+    if test_mode and not compile_error and language == "C++":
+        json_file = selected_task.replace(".txt", ".json") if selected_task else None
+        json_path = os.path.join(TASKS_DIR, json_file) if json_file else None
+
+        if json_path and os.path.exists(json_path):
+            try:
+                with open(json_path, "r", encoding="utf-8") as f:
+                    tests = json.load(f)
+
+                passed = 0
+
+                for i, test in enumerate(tests, 1):
+                    test_input = " ".join(map(str, test.get("input", [])))
+                    expected = str(test.get("expected", "")).strip()
+
+                    try:
+                        res = subprocess.run(
+                            [exe_path],
+                            input=test_input + "\n",
+                            capture_output=True,
+                            text=True,
+                            timeout=5
+                        )
+
+                        actual = res.stdout.strip()
+                        err = res.stderr.strip()
+
+                        ok = actual == expected and not err
+
+                        test_results.append({
+                            "number": i,
+                            "input": test_input,
+                            "expected": expected,
+                            "actual": actual,
+                            "error": err,
+                            "passed": ok,
+                            "timeout": False
+                        })
+
+                        if ok:
+                            passed += 1
+
+                    except subprocess.TimeoutExpired:
+                        test_results.append({
+                            "number": i,
+                            "timeout": True,
+                            "passed": False
+                        })
+
+                tests_passed = f"{passed}/{len(tests)}"
+
+            except Exception as e:
+                with open(ANALYSIS_LOG, "a", encoding="utf-8") as log:
+                    log.write(f"Ошибка тестов C++: {e}\n")
+
+                test_results.append({
+                    "number": 0,
+                    "input": "",
+                    "expected": "",
+                    "actual": "",
+                    "error": f"Ошибка запуска тестов: {e}",
+                    "passed": False,
+                    "timeout": False
+                })
+
     if test_mode and not compile_error and language == "Python":
         json_file = selected_task.replace(".txt", ".json") if selected_task else None
         json_path = os.path.join(TASKS_DIR, json_file) if json_file else None
@@ -627,7 +876,81 @@ def run_code(request):
         except FileNotFoundError:
             pass
 
-    # === Очистка временных файлов ===
+    # === Сохранение результатов анализа и тестов в файл (ДО удаления временных файлов) ===
+    analysis_parts = []
+
+    if language == "C++":
+        # --- cppcheck ---
+        if shutil.which("cppcheck"):
+            try:
+                r = subprocess.run(
+                    ["cppcheck", "--enable=all", "--inconclusive", "--std=c++17", src_path],
+                    capture_output=True, text=True, timeout=30
+                )
+                analysis_parts.append("=== CPPCheck ===\n" + (r.stderr or "Ошибок не найдено") + "\n")
+            except Exception as e:
+                analysis_parts.append(f"=== CPPCheck ===\nОшибка: {e}\n\n")
+        else:
+            analysis_parts.append("=== CPPCheck ===\nНе установлен (пропущено)\n\n")
+
+        # --- g++ compile check ---
+        if shutil.which("g++"):
+            try:
+                r = subprocess.run(
+                    ["g++", "-Wall", "-Wextra", "-std=c++17", src_path, "-o", exe_path],
+                    capture_output=True, text=True, timeout=30
+                )
+                analysis_parts.append("=== g++ warnings ===\n" + (r.stderr or "Предупреждений нет") + "\n")
+            except Exception as e:
+                analysis_parts.append(f"=== g++ ===\nОшибка: {e}\n\n")
+        else:
+            analysis_parts.append("=== g++ ===\nНе установлен (пропущено)\n\n")
+
+    if language == "Python":
+        # --- pylint ---
+        if shutil.which("pylint"):
+            try:
+                r = subprocess.run(
+                    ["pylint", "--disable=R,C", src_path],
+                    capture_output=True, text=True, timeout=30
+                )
+                analysis_parts.append("=== pylint ===\n" + (r.stdout or "Ошибок не найдено") + "\n")
+            except Exception as e:
+                analysis_parts.append(f"=== pylint ===\nОшибка: {e}\n\n")
+        else:
+            analysis_parts.append("=== pylint ===\nНе установлен (пропущено)\n\n")
+
+        # --- mypy ---
+        if shutil.which("mypy"):
+            try:
+                r = subprocess.run(
+                    ["mypy", "--ignore-missing-imports", src_path],
+                    capture_output=True, text=True, timeout=30
+                )
+                analysis_parts.append("=== mypy ===\n" + (r.stdout or "") + (r.stderr or "") + "\n")
+            except Exception as e:
+                analysis_parts.append(f"=== mypy ===\nОшибка: {e}\n\n")
+        else:
+            analysis_parts.append("=== mypy ===\nНе установлен (пропущено)\n\n")
+
+        # --- bandit ---
+        if shutil.which("bandit"):
+            try:
+                r = subprocess.run(
+                    ["bandit", "-q", "-r", src_path],
+                    capture_output=True, text=True, timeout=30
+                )
+                analysis_parts.append("=== bandit ===\n" + (r.stdout or "Уязвимостей не найдено") + (r.stderr or "") + "\n")
+            except Exception as e:
+                analysis_parts.append(f"=== bandit ===\nОшибка: {e}\n\n")
+        else:
+            analysis_parts.append("=== bandit ===\nНе установлен (пропущено)\n\n")
+
+    # Запись анализа в лог
+    with open(ANALYSIS_LOG, "w", encoding="utf-8") as f:
+        f.write(f"=== Анализ кода ({language}) ===\n" + "".join(analysis_parts))
+
+    # === Очистка временных файлов (ПОСЛЕ анализа) ===
     for path in (src_path, exe_path):
         try:
             if os.path.exists(path):
@@ -635,21 +958,71 @@ def run_code(request):
         except:
             pass
 
-    # === Ответ ===
-    # В режиме тестов output должен быть пустым (или содержать только ошибки компиляции для C++)
-    # Все результаты тестов отображаются во вкладке "Тест-кейсы"
-    # Если код был запущен, но ничего не вывел - это нормально, показываем пустую строку
-    
+    # === Сохранение полного отчета (анализ + тесты) ===
+    RESULT_LOG = os.path.join(settings.BASE_DIR, "analysis_and_tests.log")
+
+    full_report = []
+    full_report.append(f"=== Полный отчет ({language}) ===\n")
+    full_report.append(f"Задача: {selected_task or 'не выбрана'}\n")
+    full_report.append(f"Режим: {'Тесты' if test_mode else 'Ручной запуск'}\n\n")
+
+    # Добавляем результаты анализа
+    full_report.append("=== Результаты анализа ===\n")
+    try:
+        with open(ANALYSIS_LOG, "r", encoding="utf-8") as f:
+            full_report.append(f.read())
+    except:
+        full_report.append("Лог анализа недоступен.\n")
+
+    # Добавляем результаты тестов
+    full_report.append("\n=== Результаты тестов ===\n")
+    if test_results:
+        for t in test_results:
+            status = "✓ Пройден" if t.get('passed') else ("⏱ Таймаут" if t.get('timeout') else "✗ Не пройден")
+            full_report.append(
+                f"Тест {t.get('number')}: {status}\n"
+                f"  Ввод: {t.get('input', '')}\n"
+                f"  Ожидалось: {t.get('expected', '')}\n"
+                f"  Получено: {t.get('actual', '')}\n"
+            )
+            if t.get('error'):
+                full_report.append(f"  Ошибка: {t.get('error')}\n")
+            full_report.append("\n")
+        
+        # Итоговая статистика
+        passed_count = sum(1 for t in test_results if t.get('passed'))
+        full_report.append(f"Итого: {passed_count}/{len(test_results)} тестов пройдено\n")
+    else:
+        full_report.append("Тесты не выполнялись.\n")
+
+    with open(RESULT_LOG, "w", encoding="utf-8") as f:
+        f.write("".join(full_report))
+
+    # Получаем данные интервью для отображения чата
+    theory_completed = False
+    interview_chat_history = []
+    if request.user.is_candidate():
+        try:
+            interview_session = InterviewSession.objects.get(user=request.user)
+            theory_completed = interview_session.theory_completed
+            interview_chat_history = interview_session.chat_history
+        except InterviewSession.DoesNotExist:
+            pass
+
     return render(request, "codeapp/ide.html", {
-            "tasks": get_task_list(),
+        "tasks": get_task_list(),
         "selected_task": selected_task,
         "task_text": get_task_text(selected_task),
-            "code": code,
-        "output": output,  # Может быть пустым, если код ничего не вывел - это нормально
-            "input_data": user_input,
+        "code": code,
+        "output": output,
+        "input_data": user_input,
         "tests_passed": tests_passed,
         "test_results": test_results,
         "test_mode": test_mode,
         "language": language,
-        "code_executed": True,  # Флаг, что код был запущен
+        "code_executed": True,
+        "theory_completed": theory_completed,
+        "interview_chat_history": interview_chat_history,
+        'show_interview_link': False,
+        'show_editor_link': True,
     })

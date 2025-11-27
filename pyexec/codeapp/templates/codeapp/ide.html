@@ -226,6 +226,98 @@
         color: var(--color-on-surface-secondary, #6c757d);
       }
 
+      /* Поле ввода чата */
+      .chat-input-container {
+        display: flex;
+        gap: 8px;
+        padding: 12px 16px;
+        border-top: 1px solid rgba(0, 0, 0, 0.08);
+        background: #f8f9fa;
+      }
+
+      .interview-sidebar.collapsed .chat-input-container {
+        display: none;
+      }
+
+      .chat-input {
+        flex: 1;
+        padding: 10px 14px;
+        border: 1px solid rgba(0, 0, 0, 0.1);
+        border-radius: 20px;
+        font-size: 13px;
+        outline: none;
+        transition: border-color 0.2s;
+      }
+
+      .chat-input:focus {
+        border-color: var(--color-primary, #0066ff);
+      }
+
+      .chat-send-btn {
+        width: 40px;
+        height: 40px;
+        border: none;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--color-primary, #0066ff) 0%, var(--color-accent, #00a3b8) 100%);
+        color: white;
+        font-size: 16px;
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+      }
+
+      .chat-send-btn:hover {
+        transform: scale(1.05);
+        box-shadow: 0 4px 12px rgba(0, 102, 255, 0.3);
+      }
+
+      .chat-send-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      /* Индикатор загрузки */
+      .chat-loading {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 16px;
+        color: #6c757d;
+        font-size: 13px;
+      }
+
+      .chat-loading::before {
+        content: '';
+        width: 16px;
+        height: 16px;
+        border: 2px solid #dee2e6;
+        border-top-color: var(--color-primary, #0066ff);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+
+      /* Сообщение об обратной связи */
+      .feedback-message {
+        background: linear-gradient(135deg, rgba(40, 167, 69, 0.1) 0%, rgba(0, 163, 184, 0.1) 100%);
+        border-left: 3px solid #28a745;
+        padding: 12px 16px;
+        border-radius: 8px;
+        margin-bottom: 12px;
+      }
+
+      .feedback-message.warning {
+        background: linear-gradient(135deg, rgba(255, 193, 7, 0.1) 0%, rgba(255, 152, 0, 0.1) 100%);
+        border-left-color: #ffc107;
+      }
+
+      .feedback-message.error {
+        background: linear-gradient(135deg, rgba(220, 53, 69, 0.1) 0%, rgba(255, 87, 34, 0.1) 100%);
+        border-left-color: #dc3545;
+      }
+
       /* Адаптивность плашки */
       @media (max-width: 1400px) {
         .editor-layout {
@@ -1589,33 +1681,71 @@
             </div>
         </div>
 
-        <!-- Плашка интервью справа (показывается после завершения теории) -->
-        {% if theory_completed and interview_chat_history %}
-        <div class="interview-sidebar collapsed" id="interviewSidebar">
+        <!-- Плашка интервью/чат справа (показывается после завершения теории) -->
+        {% if theory_completed %}
+        <div class="interview-sidebar" id="interviewSidebar">
             <div class="interview-sidebar-header" onclick="toggleInterviewSidebar()">
-                <span>💬 История интервью</span>
+                <span>💬 Чат с интервьюером</span>
                 <button class="interview-sidebar-toggle" aria-label="Свернуть/развернуть">▼</button>
             </div>
-            <div class="interview-sidebar-content">
-                {% for item in interview_chat_history %}
-                    {% if item.type == 'theory_qa' %}
-                        <div class="interview-message">
-                            <div class="interview-message-question">
-                                <div class="interview-message-label">💬 Вопрос</div>
-                                <div>{{ item.question }}</div>
+            <div class="interview-sidebar-content" id="chatContent">
+                <!-- История чата будет здесь -->
+                <div id="chatMessages">
+                    {% for item in interview_chat_history %}
+                        {% if item.type == 'theory_qa' %}
+                            <div class="interview-message">
+                                <div class="interview-message-question">
+                                    <div class="interview-message-label">💬 Вопрос</div>
+                                    <div>{{ item.question }}</div>
+                                </div>
+                                <div class="interview-message-answer">
+                                    <div class="interview-message-label">✍️ Ваш ответ</div>
+                                    <div>{{ item.answer }}</div>
+                                </div>
                             </div>
-                            <div class="interview-message-answer">
-                                <div class="interview-message-label">✍️ Ваш ответ</div>
-                                <div>{{ item.answer }}</div>
-                                {% if item.comment %}
-                                    <div style="font-size: 12px; color: var(--color-on-surface-secondary, #6c757d); font-style: italic; margin-top: 6px; padding-left: 8px; border-left: 2px solid rgba(0, 0, 0, 0.1);">
-                                        {{ item.comment }}
+                        {% elif item.type == 'code_feedback' %}
+                            <div class="interview-message">
+                                <div class="interview-message-question">
+                                    <div class="interview-message-label">🔍 Обратная связь</div>
+                                    <div>{{ item.feedback }}</div>
+                                    {% if item.hint %}
+                                        <div style="margin-top: 8px; padding: 8px; background: rgba(255, 193, 7, 0.1); border-radius: 6px; border-left: 3px solid #ffc107;">
+                                            <strong>💡 Подсказка:</strong> {{ item.hint }}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% elif item.type == 'chat_message' %}
+                            {% if item.role == 'candidate' %}
+                                <div class="interview-message">
+                                    <div class="interview-message-answer">
+                                        <div class="interview-message-label">✍️ Вы</div>
+                                        <div>{{ item.content }}</div>
                                     </div>
-                                {% endif %}
-                            </div>
+                                </div>
+                            {% else %}
+                                <div class="interview-message">
+                                    <div class="interview-message-question">
+                                        <div class="interview-message-label">👨‍💻 Интервьюер</div>
+                                        <div>{{ item.content }}</div>
+                                    </div>
+                                </div>
+                            {% endif %}
+                        {% endif %}
+                    {% empty %}
+                        <div class="chat-welcome" id="chatWelcome">
+                            <p style="color: #6c757d; text-align: center; padding: 20px;">
+                                👋 Привет! Я буду помогать вам во время решения задач.<br><br>
+                                Запустите тесты, и я дам обратную связь по вашему коду.
+                            </p>
                         </div>
-                    {% endif %}
-                {% endfor %}
+                    {% endfor %}
+                </div>
+            </div>
+            <!-- Поле ввода сообщения -->
+            <div class="chat-input-container" id="chatInputContainer">
+                <input type="text" id="chatInput" class="chat-input" placeholder="Задайте вопрос..." />
+                <button id="chatSendBtn" class="chat-send-btn" onclick="sendChatMessage()">➤</button>
             </div>
         </div>
         {% endif %}
@@ -2040,10 +2170,191 @@
           setTimeout(() => {
             interviewSidebar.classList.add('visible');
           }, 300);
-          // По умолчанию плашка свернута, чтобы не мешать работе с кодом
-          // Пользователь может развернуть её при необходимости
         }
       });
+
+      // Функция отправки сообщения в чат
+      function sendChatMessage() {
+        const input = document.getElementById('chatInput');
+        const message = input.value.trim();
+        if (!message) return;
+
+        const chatMessages = document.getElementById('chatMessages');
+        const chatWelcome = document.getElementById('chatWelcome');
+        if (chatWelcome) chatWelcome.remove();
+
+        // Добавляем сообщение пользователя
+        chatMessages.innerHTML += `
+          <div class="interview-message">
+            <div class="interview-message-answer">
+              <div class="interview-message-label">✍️ Вы</div>
+              <div>${escapeHtml(message)}</div>
+            </div>
+          </div>
+        `;
+
+        input.value = '';
+        input.disabled = true;
+        document.getElementById('chatSendBtn').disabled = true;
+
+        // Добавляем индикатор загрузки
+        chatMessages.innerHTML += '<div class="chat-loading" id="chatLoading">Интервьюер печатает...</div>';
+        scrollChatToBottom();
+
+        // Отправляем на сервер
+        const code = window.editor ? window.editor.getValue() : '';
+        const taskText = document.querySelector('.task-description')?.innerText || '';
+
+        fetch('{% url "code_chat_api" %}', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': '{{ csrf_token }}'
+          },
+          body: new URLSearchParams({
+            action: 'send_message',
+            message: message,
+            code: code,
+            task_text: taskText,
+            language: document.getElementById('language-selector')?.value || 'Python'
+          })
+        })
+        .then(r => r.json())
+        .then(data => {
+          document.getElementById('chatLoading')?.remove();
+          input.disabled = false;
+          document.getElementById('chatSendBtn').disabled = false;
+
+          if (data.success) {
+            chatMessages.innerHTML += `
+              <div class="interview-message">
+                <div class="interview-message-question">
+                  <div class="interview-message-label">👨‍💻 Интервьюер</div>
+                  <div>${escapeHtml(data.message)}</div>
+                </div>
+              </div>
+            `;
+          } else {
+            chatMessages.innerHTML += `
+              <div class="interview-message">
+                <div class="feedback-message error">Ошибка: ${escapeHtml(data.error || 'Неизвестная ошибка')}</div>
+              </div>
+            `;
+          }
+          scrollChatToBottom();
+        })
+        .catch(err => {
+          document.getElementById('chatLoading')?.remove();
+          input.disabled = false;
+          document.getElementById('chatSendBtn').disabled = false;
+          console.error('Chat error:', err);
+        });
+      }
+
+      // Отправка по Enter
+      document.addEventListener('DOMContentLoaded', function() {
+        const chatInput = document.getElementById('chatInput');
+        if (chatInput) {
+          chatInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+              sendChatMessage();
+            }
+          });
+        }
+      });
+
+      // Анализ кода после запуска тестов
+      function analyzeCodeAfterTests(testResults) {
+        const chatMessages = document.getElementById('chatMessages');
+        const interviewSidebar = document.getElementById('interviewSidebar');
+        
+        if (!chatMessages || !interviewSidebar) return;
+
+        // Разворачиваем чат
+        interviewSidebar.classList.remove('collapsed');
+
+        const chatWelcome = document.getElementById('chatWelcome');
+        if (chatWelcome) chatWelcome.remove();
+
+        // Добавляем индикатор загрузки
+        chatMessages.innerHTML += '<div class="chat-loading" id="chatLoading">Анализирую ваш код...</div>';
+        scrollChatToBottom();
+
+        const code = window.editor ? window.editor.getValue() : '';
+        const taskText = document.querySelector('.task-description')?.innerText || '';
+
+        fetch('{% url "code_chat_api" %}', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': '{{ csrf_token }}'
+          },
+          body: new URLSearchParams({
+            action: 'analyze_code',
+            code: code,
+            task_text: taskText,
+            test_results: testResults,
+            language: document.getElementById('language-selector')?.value || 'Python'
+          })
+        })
+        .then(r => r.json())
+        .then(data => {
+          document.getElementById('chatLoading')?.remove();
+
+          if (data.success) {
+            let qualityClass = '';
+            if (data.code_quality === 'good') qualityClass = '';
+            else if (data.code_quality === 'needs_improvement') qualityClass = 'warning';
+            else qualityClass = 'error';
+
+            let html = `
+              <div class="interview-message">
+                <div class="feedback-message ${qualityClass}">
+                  <div class="interview-message-label">🔍 Обратная связь</div>
+                  <div>${escapeHtml(data.feedback)}</div>
+            `;
+
+            if (data.hint) {
+              html += `
+                  <div style="margin-top: 10px; padding: 10px; background: rgba(255, 193, 7, 0.15); border-radius: 6px; border-left: 3px solid #ffc107;">
+                    <strong>💡 Подсказка:</strong> ${escapeHtml(data.hint)}
+                  </div>
+              `;
+            }
+
+            if (data.encouragement) {
+              html += `<div style="margin-top: 8px; font-style: italic; color: #6c757d;">${escapeHtml(data.encouragement)}</div>`;
+            }
+
+            html += '</div></div>';
+            chatMessages.innerHTML += html;
+          } else {
+            chatMessages.innerHTML += `
+              <div class="interview-message">
+                <div class="feedback-message error">Ошибка анализа: ${escapeHtml(data.error || 'Неизвестная ошибка')}</div>
+              </div>
+            `;
+          }
+          scrollChatToBottom();
+        })
+        .catch(err => {
+          document.getElementById('chatLoading')?.remove();
+          console.error('Analyze error:', err);
+        });
+      }
+
+      function scrollChatToBottom() {
+        const content = document.getElementById('chatContent');
+        if (content) {
+          content.scrollTop = content.scrollHeight;
+        }
+      }
+
+      function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+      }
 
       document.addEventListener('DOMContentLoaded', function() {
         const userInput = document.getElementById('user-input');
@@ -2076,6 +2387,14 @@
           setTimeout(function() {
             switchTab('testcases');
           }, 100);
+
+          // Автоматически анализируем код после запуска тестов
+          {% if theory_completed %}
+          setTimeout(function() {
+            const testResultsStr = `{% for result in test_results %}Тест {{ result.number }}: {% if result.passed %}✓ Пройден{% elif result.timeout %}⏱ Таймаут{% else %}✗ Не пройден{% endif %} | Вход: {{ result.input|default:"" }} | Ожидалось: {{ result.expected|default:"" }} | Получено: {{ result.actual|default:"" }}{% if result.error %} | Ошибка: {{ result.error }}{% endif %}\n{% endfor %}Итого: {{ tests_passed }}`;
+            analyzeCodeAfterTests(testResultsStr);
+          }, 500);
+          {% endif %}
         {% endif %}
       });
     </script>
