@@ -6,6 +6,8 @@ from typing import List, Tuple, Optional, Dict, Any, Union
 import numpy as np
 from openai import OpenAI
 import json
+import pickle
+import os
 
 
 class TaskSearcher:
@@ -260,4 +262,50 @@ class TaskSearcher:
             if idx == task_index:
                 return (condition, description)
         return None
+    
+    def save_to_file(self, filepath: str) -> None:
+        """
+        Сохраняет векторную базу данных в файл.
+        
+        Args:
+            filepath: путь к файлу для сохранения
+        """
+        # Пересобираем индекс перед сохранением
+        if self._needs_reindex:
+            self._build_index()
+        
+        data = {
+            "tasks": self.tasks,
+            "embeddings": self.embeddings,
+            "model_name": self.model_name,
+            "_needs_reindex": False  # После загрузки индекс уже построен
+        }
+        
+        with open(filepath, 'wb') as f:
+            pickle.dump(data, f)
+    
+    @classmethod
+    def load_from_file(cls, client: OpenAI, filepath: str) -> 'TaskSearcher':
+        """
+        Загружает векторную базу данных из файла.
+        
+        Args:
+            client: клиент OpenAI
+            filepath: путь к файлу для загрузки
+        
+        Returns:
+            Экземпляр TaskSearcher с загруженными данными
+        """
+        if not os.path.exists(filepath):
+            raise FileNotFoundError(f"Файл {filepath} не найден")
+        
+        with open(filepath, 'rb') as f:
+            data = pickle.load(f)
+        
+        searcher = cls(client=client, model_name=data.get("model_name", "bge-m3"))
+        searcher.tasks = data["tasks"]
+        searcher.embeddings = data.get("embeddings")
+        searcher._needs_reindex = data.get("_needs_reindex", False)
+        
+        return searcher
 

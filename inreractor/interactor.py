@@ -705,6 +705,61 @@ class Interactor:
             "task_index": self.current_task["task_index"],
             "description": self.get_task_description_for_candidate()
         }
+        
+    def _generate_hinting_question(self, code_quality: str, solution_completeness: str, 
+                                   attempt: int) -> str:
+        """
+        Генерирует наводящий вопрос на основе качества кода и полноты решения.
+        
+        Args:
+            code_quality: описание качества кода
+            solution_completeness: описание полноты решения
+            attempt: номер попытки
+        
+        Returns:
+            Наводящий вопрос для кандидата
+        """
+        task_info = ""
+        if self.current_task:
+            condition = self.current_task.get("condition", "")
+            description = self.current_task.get("description", "")
+            task_info = f"Условие задачи: {condition}\nОписание: {description}"
+        
+        system_prompt = (
+            "/no_think Ты опытный технический интервьюер. "
+            "Твоя задача — сформулировать наводящий вопрос для кандидата, который поможет ему улучшить решение задачи.\n\n"
+            "Наводящий вопрос должен:\n"
+            "- быть конкретным и направленным на проблему в решении\n"
+            "- не давать прямого ответа, а подталкивать к правильному направлению\n"
+            "- учитывать тип задачи и выявленные проблемы\n"
+            "- быть кратким (1-2 предложения)\n\n"
+            "Верни только наводящий вопрос на русском языке, без дополнительных пояснений."
+        )
+        
+        user_content = (
+            f"{task_info}\n\n"
+            f"Качество кода: {code_quality}\n"
+            f"Полнота решения: {solution_completeness}\n"
+            f"Номер попытки: {attempt}\n\n"
+            "Сформулируй наводящий вопрос, который поможет кандидату улучшить решение."
+        )
+        
+        try:
+            resp = self.client.chat.completions.create(
+                model="qwen3-coder-30b-a3b-instruct-fp8",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_content},
+                ],
+                stream=False,
+                temperature=0.7
+            )
+            
+            hint = resp.choices[0].message.content.strip()
+            return hint
+        except Exception:
+            # Fallback наводящий вопрос
+            return "Подумайте, какие аспекты решения можно улучшить? Проверьте все требования задачи."
     
     def _evaluate_solution_with_llm(self, code_quality: str, solution_completeness: str, 
                                     previous_dialogue: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -720,6 +775,7 @@ class Interactor:
             {
                 "verdict": "mastered" | "partially_mastered" | "not_mastered" | "continue",
                 "message": str,  # сообщение для кандидата
+                "hint": Optional[str],  # наводящий вопрос, если нужен
                 "should_continue": bool  # нужно ли продолжать диалог
             }
         """
@@ -743,11 +799,12 @@ class Interactor:
             "1. Кандидат явно владеет навыками (mastered) — код качественный, решение полное и правильное\n"
             "2. Кандидат явно не владеет навыками (not_mastered) — код некачественный, решение неполное или неправильное, и уже было несколько попыток\n"
             "3. Кандидат частично владеет навыками (partially_mastered) — код приемлемый, но решение неполное, или наоборот\n\n"
-            "Если информации недостаточно для финального решения, верни 'continue'.\n\n"
+            "Если информации недостаточно для финального решения, верни 'continue' и предложи наводящий вопрос.\n\n"
             "Формат ответа: JSON строго с ключами:\n"
             "{\n"
             '  \"verdict\": \"mastered\" | \"partially_mastered\" | \"not_mastered\" | \"continue\",\n'
             '  \"message\": \"сообщение для кандидата на русском\",\n'
+            '  \"hint\": \"наводящий вопрос на русском (если verdict == continue, иначе пустая строка)\",\n'
             '  \"should_continue\": true/false\n'
             "}"
         )
@@ -773,15 +830,30 @@ class Interactor:
         
         try:
             data = json.loads(resp.choices[0].message.content)
+            verdict = data.get("verdict", "continue")
+            message = data.get("message", "")
+            hint = data.get("hint", "").strip()
+            should_continue = data.get("should_continue", True)
+            
+            # Если вердикт "continue" и наводящий вопрос не был сгенерирован, генерируем его
+            if verdict == "continue" and not hint:
+                attempt = self.task_solution_attempts.get(self.current_task_idx, 0) + 1
+                hint = self._generate_hinting_question(code_quality, solution_completeness, attempt)
+            
             return {
-                "verdict": data.get("verdict", "continue"),
-                "message": data.get("message", ""),
-                "should_continue": data.get("should_continue", True)
+                "verdict": verdict,
+                "message": message,
+                "hint": hint,
+                "should_continue": should_continue
             }
         except Exception:
+            # Генерируем наводящий вопрос как fallback
+            attempt = self.task_solution_attempts.get(self.current_task_idx, 0) + 1
+            hint = self._generate_hinting_question(code_quality, solution_completeness, attempt)
             return {
                 "verdict": "continue",
                 "message": "Требуется дополнительная информация для оценки.",
+                "hint": hint,
                 "should_continue": True
             }
     
@@ -868,9 +940,11 @@ class Interactor:
         
         verdict = eval_result.get("verdict", "continue")
         message = eval_result.get("message", "")
+        hint = eval_result.get("hint", "").strip()
         should_continue = eval_result.get("should_continue", True)
         
         # Сохраняем в историю
+        attempt_num = self.task_solution_attempts.get(self.current_task_idx, 0) + 1
         self.chat_history.append({
             "type": "practice_task",
             "task_index": self.current_task["task_index"],
@@ -880,13 +954,21 @@ class Interactor:
             "candidate_message": candidate_message,
             "verdict": verdict,
             "message": message,
-            "attempt": self.task_solution_attempts.get(self.current_task_idx, 0) + 1
+            "hint": hint,
+            "attempt": attempt_num
         })
         
         self.task_dialogue_history.append({
             "role": "evaluator",
             "content": message
         })
+        
+        # Если есть наводящий вопрос, сохраняем его в историю диалога
+        if hint and verdict == "continue":
+            self.task_dialogue_history.append({
+                "role": "interviewer",
+                "content": hint
+            })
         
         # Если решение принято, завершаем работу с задачей
         task_completed = verdict in ["mastered", "partially_mastered", "not_mastered"]
@@ -909,6 +991,7 @@ class Interactor:
             "success": True,
             "verdict": verdict,
             "message": message,
+            "hint": hint if verdict == "continue" else None,  # Возвращаем наводящий вопрос, если нужен
             "task_completed": task_completed,
             "needs_retry": not task_completed and should_continue
         }
@@ -1014,9 +1097,120 @@ class Interactor:
                 "message": f"Ошибка при генерации ответа: {str(e)}",
                 "needs_retry": False
             }
+
+    def _build_practice_report(self) -> List[Dict[str, Any]]:
+        """
+        Формирует подробные данные о выполненных практических задачах на основе chat_history.
+        Возвращает список словарей с ключами:
+            {
+                "task_index": int,
+                "condition": str,
+                "description": str,
+                "attempts": List[
+                    {
+                        "attempt": int,
+                        "code_quality": str,
+                        "solution_completeness": str,
+                        "verdict": str,
+                        "message": str,
+                        "hint": Optional[str]
+                    }
+                ],
+                "final_verdict": str
+            }
+        """
+        report: Dict[int, Dict[str, Any]] = {}
+
+        # Собираем информацию по каждой задаче
+        for entry in self.chat_history:
+            if entry.get("type") != "practice_task":
+                continue
+
+            task_idx = entry.get("task_idx")
+            task_index = entry.get("task_index")
+            if task_idx is None or task_index is None:
+                continue
+
+            if task_idx not in report:
+                # Получаем описание задачи из TaskSearcher (если доступен)
+                condition = ""
+                description = ""
+                if self.task_searcher:
+                    task_info = self.task_searcher.get_task_by_index(task_index)
+                    if task_info:
+                        condition, description = task_info
+                else:
+                    if self.current_task and self.current_task.get("task_index") == task_index:
+                        condition = self.current_task.get("condition", "")
+                        description = self.current_task.get("description", "")
+
+                report[task_idx] = {
+                    "task_index": task_index,
+                    "condition": condition,
+                    "description": description,
+                    "attempts": [],
+                    "final_verdict": entry.get("verdict", "unknown")
+                }
+
+            report[task_idx]["attempts"].append({
+                "attempt": entry.get("attempt"),
+                "code_quality": entry.get("code_quality"),
+                "solution_completeness": entry.get("solution_completeness"),
+                "verdict": entry.get("verdict"),
+                "message": entry.get("message"),
+                "hint": entry.get("hint")
+            })
+
+            # Обновляем финальный вердикт
+            report[task_idx]["final_verdict"] = entry.get("verdict", report[task_idx]["final_verdict"])
+
+        # Преобразуем в список и сортируем по task_idx
+        report_list = [
+            {
+                "task_index": data["task_index"],
+                "condition": data["condition"],
+                "description": data["description"],
+                "attempts": sorted(data["attempts"], key=lambda x: x["attempt"] or 0),
+                "final_verdict": data["final_verdict"]
+            }
+            for data in sorted(report.values(), key=lambda x: x["task_index"])
+        ]
+
+        return report_list
+
+    def get_practice_report_text(self) -> str:
+        """
+        Возвращает текстовый отчет о решении практических задач.
+        Для каждой задачи указываются условие, описание, качество кода и полнота решения по каждой попытке.
+        """
+        report_data = self._build_practice_report()
+        if not report_data:
+            return "Практические задачи не выполнялись."
+
+        parts = []
+        for task in report_data:
+            task_header = (
+                f"Задача #{task['task_index']}:\n"
+                f"Условие: {task['condition'] or 'не указано'}\n"
+                f"Описание: {task['description'] or 'не указано'}\n"
+                f"Финальный вердикт: {task['final_verdict']}\n"
+            )
+            attempt_lines = []
+            for attempt in task["attempts"]:
+                attempt_lines.append(
+                    f"  - Попытка {attempt['attempt'] or 'N/A'}:\n"
+                    f"      Качество кода: {attempt['code_quality']}\n"
+                    f"      Полнота решения: {attempt['solution_completeness']}\n"
+                    f"      Вердикт: {attempt['verdict']} — {attempt['message']}\n"
+                    f"      Наводящая подсказка: {attempt['hint'] or 'не было'}"
+                )
+
+            parts.append(task_header + "\n".join(attempt_lines))
+
+        return "\n\n".join(parts)
+
     
     def reset(self):
-        """Полностью сбрасывает состояние интервью."""
         self.hard_desc = None
         self.chat_history = []
         self.theory_questions = []
@@ -1029,8 +1223,6 @@ class Interactor:
         self.termination_reason = None
         self.hard_desc_attempts = 0
         self.answer_attempts = {}
-        
-        # Практические задачи
         self.recommended_tasks = []
         self.current_task = None
         self.current_task_idx = -1
