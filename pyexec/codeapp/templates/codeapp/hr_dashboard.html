@@ -1,0 +1,530 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <title>CodeSphere - Панель HR</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto+Mono:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;1,100;1,200;1,300;1,400;1,500;1,600;1,700&display=swap" />
+    <link rel="stylesheet" href="{% static 'style.css' %}" />
+    <link href="{% static 'index.css' %}" rel="stylesheet" />
+    <link href="{% static 'components/navigation.css' %}" rel="stylesheet" />
+    <link href="{% static 'components/footer.css' %}" rel="stylesheet" />
+    <style>
+      html {
+        font-family: "Roboto Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, "Courier New", monospace;
+        font-size: 1rem;
+      }
+      
+      body {
+        background: #f8f9fa;
+        font-family: "Roboto Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, "Courier New", monospace;
+      }
+      .dashboard-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 40px 20px 80px;
+      }
+      /* Hero Section для HR панели */
+      .hero-section {
+        position: relative;
+        height: 50vh;
+        min-height: 400px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        background: linear-gradient(135deg, #0066ff 0%, #00a3b8 100%);
+        margin-bottom: 60px;
+      }
+
+      .hero-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.3);
+      }
+
+      .hero-content {
+        position: relative;
+        z-index: 1;
+        text-align: center;
+        color: white;
+        max-width: 1200px;
+        padding: 0 20px;
+      }
+
+      .hero-title {
+        font-size: 4rem;
+        margin-bottom: 20px;
+        animation: fadeInUp 1s ease-out;
+        font-weight: 700;
+      }
+
+      .hero-subtitle {
+        font-size: 1.5rem;
+        margin-bottom: 40px;
+        animation: fadeInUp 1s ease-out 0.3s;
+        opacity: 0;
+        animation-fill-mode: forwards;
+        font-weight: 400;
+      }
+
+      @keyframes fadeInUp {
+        from {
+          opacity: 0;
+          transform: translateY(20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @media (max-width: 768px) {
+        .hero-section {
+          height: 40vh;
+          min-height: 300px;
+        }
+        .hero-title {
+          font-size: 2.5rem;
+        }
+        .hero-subtitle {
+          font-size: 1.2rem;
+        }
+      }
+      .candidate-card {
+        background: var(--color-surface, #ffffff);
+        border-radius: 18px;
+        box-shadow: 0 16px 40px rgba(3, 16, 47, 0.08);
+        margin-bottom: 32px;
+        padding: 28px;
+        border: 1px solid rgba(0, 0, 0, 0.04);
+      }
+      .candidate-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+      .candidate-info h2 {
+        margin: 0;
+        font-size: 24px;
+        color: var(--color-on-surface, #1e1e2f);
+      }
+      .candidate-info p {
+        color: var(--color-on-surface-secondary, #6c757d);
+      }
+      .tag {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 999px;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        font-weight: 600;
+      }
+      .tag-stage { background: rgba(0, 102, 255, 0.12); color: #0050c8; }
+      .tag-suspicious { background: rgba(255, 99, 132, 0.12); color: #c71b43; }
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 18px;
+        margin-top: 18px;
+      }
+      .stat-card {
+        background: linear-gradient(180deg, rgba(248, 250, 252, 0.9), rgba(255, 255, 255, 0.95));
+        border-radius: 14px;
+        padding: 18px;
+        border: 1px solid rgba(0, 0, 0, 0.03);
+      }
+      .stat-title {
+        font-size: 14px;
+        color: var(--color-on-surface-secondary, #6c757d);
+        margin-bottom: 6px;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+      }
+      .stat-value {
+        font-size: 28px;
+        font-weight: 700;
+        color: var(--color-on-surface, #111827);
+      }
+      .section-title {
+        font-size: 18px;
+        margin: 28px 0 16px;
+        color: var(--color-on-surface, #1e1e2f);
+      }
+      .history-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+      .history-item {
+        padding: 14px 16px;
+        background: rgba(248, 250, 252, 0.95);
+        border-radius: 12px;
+        margin-bottom: 10px;
+        border: 1px solid rgba(0, 0, 0, 0.02);
+      }
+      .history-item strong {
+        display: block;
+        margin-bottom: 6px;
+        color: var(--color-on-surface, #1f2937);
+      }
+      .practice-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 12px;
+      }
+      .practice-table th,
+      .practice-table td {
+        padding: 12px 14px;
+        text-align: left;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+      }
+      .practice-table th {
+        color: var(--color-on-surface-secondary, #6c757d);
+        font-size: 13px;
+        text-transform: uppercase;
+      }
+      .practice-table td {
+        color: var(--color-on-surface, #1f2937);
+      }
+      .verdict-badge {
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-size: 12px;
+        text-transform: uppercase;
+        font-weight: 600;
+        display: inline-block;
+      }
+      .verdict-mastered { background: rgba(34, 197, 94, 0.15); color: #0f8a2d; }
+      .verdict-partially_mastered { background: rgba(255, 193, 7, 0.15); color: #b58000; }
+      .verdict-not_mastered { background: rgba(220, 53, 69, 0.15); color: #b21f2d; }
+      .verdict-continue { background: rgba(0, 123, 255, 0.15); color: #0b5ed7; }
+      @media (max-width: 768px) {
+        .candidate-header {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+        .stats-grid {
+          grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        }
+      }
+    </style>
+</head>
+<body>
+  <!-- Navigation (same as other pages) -->
+  <navigation-wrapper class="navigation-wrapper">
+    <div class="navigation-container1">
+      <nav id="mainNavigation" class="navigation">
+        <div class="navigation-container">
+          <div class="navigation-left">
+            <a href="{% url 'home' %}">
+              <div class="navigation-link"><span>Главная</span></div>
+            </a>
+            {% if user.is_authenticated and user.is_candidate %}
+              {% if show_interview_link %}
+              <a href="{% url 'interview' %}">
+                <div class="navigation-link"><span>Интервью</span></div>
+              </a>
+              {% endif %}
+              {% if show_editor_link %}
+              <a href="{% url 'runcode' %}">
+                <div class="navigation-link"><span>Редактор</span></div>
+              </a>
+              {% endif %}
+            {% elif user.is_authenticated and user.is_hr %}
+              <a href="{% url 'hr_dashboard' %}">
+                <div class="navigation-link active"><span>Панель HR</span></div>
+              </a>
+            {% else %}
+              <a href="{% url 'runcode' %}">
+                <div class="navigation-link"><span>Редактор</span></div>
+              </a>
+            {% endif %}
+          </div>
+          <a href="{% url 'home' %}">
+            <div class="navigation-logo">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" class="navigation-logo-icon">
+                <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m16 18l6-6l-6-6M8 6l-6 6l6 6"></path>
+              </svg>
+              <span class="navigation-logo-text">CodeSphere</span>
+            </div>
+          </a>
+          <div class="navigation-right">
+            {% if user.is_authenticated %}
+              <span class="navigation-link" style="color: var(--color-on-surface-secondary, #6c757d); margin-right: 12px;">
+                {{ user.username }} ({{ user.get_role_display }})
+              </span>
+              <a href="{% url 'logout' %}">
+                <div class="navigation-link"><span>Выйти</span></div>
+              </a>
+            {% else %}
+              <a href="{% url 'login' %}">
+                <div class="navigation-link"><span>Вход</span></div>
+              </a>
+              <a href="{% url 'register' %}">
+                <div class="navigation-cta btn btn-primary">
+                  <span>Регистрация</span>
+                </div>
+              </a>
+            {% endif %}
+          </div>
+          <button id="navToggle" aria-expanded="false" aria-label="Открыть меню навигации" class="navigation-toggle">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+              <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5h16M4 12h16M4 19h16"></path>
+            </svg>
+          </button>
+        </div>
+      </nav>
+      <div id="navMobileOverlay" class="navigation-mobile-overlay">
+        <div class="navigation-mobile-header">
+          <a href="{% url 'home' %}">
+            <div class="navigation-mobile-logo">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" class="navigation-mobile-logo-icon">
+                <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m16 18l6-6l-6-6M8 6l-6 6l6 6"></path>
+              </svg>
+              <span class="navigation-mobile-logo-text">CodeSphere</span>
+            </div>
+          </a>
+          <button id="navClose" aria-label="Закрыть меню навигации" class="navigation-close">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+              <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 6L6 18M6 6l12 12"></path>
+            </svg>
+          </button>
+        </div>
+        <div class="navigation-mobile-content">
+          <a href="{% url 'home' %}">
+            <div class="navigation-mobile-link"><span>Главная</span></div>
+          </a>
+          {% if user.is_authenticated and user.is_candidate %}
+            {% if show_interview_link %}
+            <a href="{% url 'interview' %}">
+              <div class="navigation-mobile-link"><span>Интервью</span></div>
+            </a>
+            {% endif %}
+            {% if show_editor_link %}
+            <a href="{% url 'runcode' %}">
+              <div class="navigation-mobile-link"><span>Редактор</span></div>
+            </a>
+            {% endif %}
+          {% elif user.is_authenticated and user.is_hr %}
+            <a href="{% url 'hr_dashboard' %}">
+              <div class="navigation-mobile-link"><span>Панель HR</span></div>
+            </a>
+          {% else %}
+            <a href="{% url 'runcode' %}">
+              <div class="navigation-mobile-link"><span>Редактор</span></div>
+            </a>
+          {% endif %}
+          {% if user.is_authenticated %}
+            <div class="navigation-mobile-link" style="color: var(--color-on-surface-secondary, #6c757d);">
+              <span>{{ user.username }} ({{ user.get_role_display }})</span>
+            </div>
+            <a href="{% url 'logout' %}">
+              <div class="navigation-mobile-link"><span>Выйти</span></div>
+            </a>
+          {% else %}
+            <a href="{% url 'login' %}">
+              <div class="navigation-mobile-link"><span>Вход</span></div>
+            </a>
+            <a href="{% url 'register' %}">
+              <div class="navigation-mobile-cta btn btn-primary"><span>Регистрация</span></div>
+            </a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </navigation-wrapper>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const navToggle = document.getElementById('navToggle');
+      const navClose = document.getElementById('navClose');
+      const navMobileOverlay = document.getElementById('navMobileOverlay');
+
+      if (navToggle && navMobileOverlay) {
+        navToggle.addEventListener('click', function() {
+          navMobileOverlay.classList.add('navigation-mobile-active');
+          navToggle.setAttribute('aria-expanded', 'true');
+          document.body.style.overflow = 'hidden';
+        });
+      }
+
+      if (navClose && navMobileOverlay) {
+        navClose.addEventListener('click', closeMobileNav);
+      }
+
+      function closeMobileNav() {
+        navMobileOverlay.classList.remove('navigation-mobile-active');
+        if (navToggle) {
+          navToggle.setAttribute('aria-expanded', 'false');
+        }
+        document.body.style.overflow = '';
+      }
+
+      const mobileLinks = document.querySelectorAll('.navigation-mobile-link, .navigation-mobile-cta');
+      mobileLinks.forEach(link => link.addEventListener('click', closeMobileNav));
+    });
+  </script>
+  <div class="dashboard-container">
+    <section class="hero-section">
+      <div class="hero-overlay"></div>
+      <div class="hero-content">
+        <h1 class="hero-title">Панель HR</h1>
+        <p class="hero-subtitle">Быстрый обзор прогресса и подозрительной активности кандидатов</p>
+      </div>
+    </section>
+    {% if candidates %}
+      {% for candidate in candidates %}
+        <div class="candidate-card">
+          <div class="candidate-header">
+            <div class="candidate-info">
+              <h2>{{ candidate.user.username }}</h2>
+              <p style="color:#6c757d;">Последнее обновление: {{ candidate.updated_at|date:"d.m.Y H:i" }}</p>
+              {% if candidate.hard_desc %}
+                <p style="margin-top:8px;">Навыки: {{ candidate.hard_desc }}</p>
+              {% endif %}
+            </div>
+            <div>
+              <span class="tag tag-stage">Стадия: {{ candidate.stage }}</span>
+              {% if candidate.suspicious_count %}
+              <span class="tag tag-suspicious">Подозрительное: {{ candidate.suspicious_count }}</span>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-title">Теория</div>
+              <div class="stat-value">{{ candidate.theory_stats.correct }}/{{ candidate.theory_stats.questions_total }}</div>
+              <p style="margin:0;color:#6c757d;">Правильных ответов</p>
+            </div>
+            <div class="stat-card">
+              <div class="stat-title">Наводящие подсказки</div>
+              <div class="stat-value">{{ candidate.theory_stats.after_hint_correct }}</div>
+              <p style="margin:0;color:#6c757d;">Правил после подсказки</p>
+            </div>
+            <div class="stat-card">
+              <div class="stat-title">Практика</div>
+              <div class="stat-value">{{ candidate.practice_stats.completed }}/{{ candidate.practice_stats.tasks_total }}</div>
+              <p style="margin:0;color:#6c757d;">Завершённых задач</p>
+            </div>
+            <div class="stat-card">
+              <div class="stat-title">Подозрительные действия</div>
+              <div class="stat-value">{{ candidate.suspicious_count }}</div>
+              <p style="margin:0;color:#6c757d;">Переключений: {{ candidate.tab_switches }} / Вставок: {{ candidate.copy_paste_count }}</p>
+            </div>
+          </div>
+
+          <h3 class="section-title">Последние ответы (теория)</h3>
+          {% if candidate.theory_stats.history %}
+            <ul class="history-list">
+              {% for item in candidate.theory_stats.history %}
+                <li class="history-item">
+                  <strong>{{ item.question }}</strong>
+                  <div>Ответ: {{ item.answer }}</div>
+                  <div>Вердикт: {{ item.verdict }}{% if item.after_hint %} (после подсказки){% endif %}</div>
+                  {% if item.comment %}<div style="color:#6c757d;">Комментарий: {{ item.comment }}</div>{% endif %}
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p style="color:#6c757d;">Ответы ещё не записаны.</p>
+          {% endif %}
+
+          <h3 class="section-title">Практические задачи</h3>
+          {% if candidate.practice_stats.tasks %}
+            <table class="practice-table">
+              <thead>
+                <tr>
+                  <th>Задача</th>
+                  <th>Попыток</th>
+                  <th>Вердикт</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for task in candidate.practice_stats.tasks %}
+                  <tr>
+                    <td>#{{ task.task_index }}</td>
+                    <td>{{ task.attempts }}</td>
+                    <td>
+                      <span class="verdict-badge verdict-{{ task.final_verdict|default:'continue' }}">
+                        {{ task.final_verdict|default:'in progress' }}
+                      </span>
+                    </td>
+                  </tr>
+                  {% if task.history %}
+                    <tr>
+                      <td colspan="3">
+                        <ul class="history-list">
+                          {% for attempt in task.history %}
+                            <li class="history-item">
+                              <strong>Попытка {{ attempt.attempt }}</strong>
+                              <div>Качество кода: {{ attempt.code_quality }}</div>
+                              <div>Полнота: {{ attempt.solution_completeness }}</div>
+                              <div>Вердикт: {{ attempt.verdict }} — {{ attempt.message }}</div>
+                              {% if attempt.hint %}<div style="color:#6c757d;">Подсказка: {{ attempt.hint }}</div>{% endif %}
+                            </li>
+                          {% endfor %}
+                        </ul>
+                      </td>
+                    </tr>
+                  {% endif %}
+                {% endfor %}
+              </tbody>
+            </table>
+          {% else %}
+            <p style="color:#6c757d;">Практические задачи ещё не выполнялись.</p>
+          {% endif %}
+
+          {% if candidate.suspicious_list %}
+          <h3 class="section-title">Последние подозрительные действия</h3>
+          <ul class="history-list">
+            {% for event in candidate.suspicious_list %}
+              <li class="history-item">
+                <strong>{{ event.timestamp|default:"—" }}</strong>
+                <div>Тип: {{ event.type }}</div>
+                <div>Детали: {{ event.details }}</div>
+              </li>
+            {% endfor %}
+          </ul>
+          {% endif %}
+        </div>
+      {% endfor %}
+    {% else %}
+      <p style="text-align:center;color:#6c757d;">Пока нет активных интервью.</p>
+    {% endif %}
+  </div>
+  <footer-wrapper class="footer-wrapper">
+    <div class="footer-container1">
+      <footer class="footer">
+        <div class="footer-wrapper">
+          <div class="footer-content" style="padding: 40px 20px; max-width: 1200px; margin: 0 auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px;">
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" style="color: currentColor;">
+                  <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m16 18l6-6l-6-6M8 6l-6 6l6 6"></path>
+                </svg>
+                <span style="font-weight: 600; font-size: 18px;">CodeSphere</span>
+              </div>
+              <nav style="display: flex; gap: 30px; align-items: center; flex-wrap: wrap;">
+                <a href="{% url 'home' %}" style="text-decoration: none; color: inherit; font-size: 14px;">Главная</a>
+                <a href="{% url 'runcode' %}" style="text-decoration: none; color: inherit; font-size: 14px;">Редактор</a>
+                <a href="{% url 'hr_dashboard' %}" style="text-decoration: none; color: inherit; font-size: 14px;">Панель HR</a>
+              </nav>
+              <p style="margin: 0; font-size: 14px; color: rgba(0, 0, 0, 0.6);">© 2025 CodeSphere</p>
+            </div>
+          </div>
+        </div>
+      </footer>
+    </div>
+  </footer-wrapper>
+</body>
+</html>
+
